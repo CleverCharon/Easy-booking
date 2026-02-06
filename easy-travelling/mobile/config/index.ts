@@ -1,14 +1,14 @@
 import { defineConfig, type UserConfigExport } from '@tarojs/cli'
-
+import TsconfigPathsPlugin from 'tsconfig-paths-webpack-plugin'
 import devConfig from './dev'
 import prodConfig from './prod'
-
+import vitePluginImp from 'vite-plugin-imp'
 // https://taro-docs.jd.com/docs/next/config#defineconfig-辅助函数
 export default defineConfig<'vite'>(async (merge, { command, mode }) => {
   const baseConfig: UserConfigExport<'vite'> = {
     projectName: 'mobile',
-    date: '2026-2-5',
-    designWidth: 750,
+    date: '2026-2-6',
+    designWidth: 375,
     deviceRatio: {
       640: 2.34 / 2,
       750: 1,
@@ -17,9 +17,7 @@ export default defineConfig<'vite'>(async (merge, { command, mode }) => {
     },
     sourceRoot: 'src',
     outputRoot: 'dist',
-    plugins: [
-      "@tarojs/plugin-generator"
-    ],
+    plugins: ['@tarojs/plugin-html'],
     defineConstants: {
     },
     copy: {
@@ -29,13 +27,27 @@ export default defineConfig<'vite'>(async (merge, { command, mode }) => {
       }
     },
     framework: 'react',
-    compiler: 'vite',
+    compiler: {
+      vitePlugins: [vitePluginImp({
+        libList: [
+          {
+            libName: '@nutui/nutui-react-taro',
+            style: (name) => {
+              return `@nutui/nutui-react-taro/dist/esm/${name}/style/css`
+            },
+            replaceOldImport: false,
+            camel2DashComponentName: false,
+          }
+        ]
+      })],
+      type: 'vite'
+    },
     mini: {
       postcss: {
         pxtransform: {
           enable: true,
           config: {
-
+            selectorBlackList: ['nut-']
           }
         },
         cssModules: {
@@ -79,9 +91,6 @@ export default defineConfig<'vite'>(async (merge, { command, mode }) => {
       }
     }
   }
-
-  process.env.BROWSERSLIST_ENV = process.env.NODE_ENV
-
   if (process.env.NODE_ENV === 'development') {
     // 本地开发构建配置（不混淆压缩）
     return merge({}, baseConfig, devConfig)
