@@ -1,0 +1,221 @@
+.login-page-v2 {
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  .bg-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(37, 37, 95, 0.3);
+    z-index: 1;
+  }
+
+  .gradient-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 0%, rgba(37, 37, 95, 0.5) 50%, rgba(37, 37, 95, 0.8) 100%);
+    z-index: 2;
+  }
+
+  .top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
+    padding: 0 16px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+
+    .close-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .help-txt {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+  }
+
+  .content-wrap {
+    position: relative;
+    z-index: 10;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 24px;
+    padding-bottom: 40px;
+
+    .title-sec {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 32px;
+
+      .main-tit {
+        font-size: 32px;
+        font-weight: bold;
+        color: #fff;
+        margin-bottom: 8px;
+        text-align: center;
+      }
+
+      .sub-tit {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.7);
+        text-align: center;
+      }
+    }
+
+    .form-card {
+      background: rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+
+      .method-tabs {
+        display: flex;
+        margin-bottom: 24px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+        .tab {
+          flex: 1;
+          text-align: center;
+          padding-bottom: 12px;
+          font-size: 14px;
+          color: rgba(255, 255, 255, 0.7);
+          position: relative;
+
+          &.active {
+            color: #fff;
+            font-weight: bold;
+            &::after {
+              content: '';
+              position: absolute;
+              bottom: -1px;
+              left: 50%;
+              transform: translateX(-50%);
+              width: 40px;
+              height: 2px;
+              background: #33C7F7;
+            }
+          }
+        }
+      }
+
+      .input-group {
+        position: relative;
+        margin-bottom: 16px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+
+        .custom-input {
+          flex: 1;
+          height: 100%;
+          background: transparent;
+          border: none;
+          color: #fff;
+          font-size: 14px;
+          
+          &::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+          }
+        }
+
+        .clear-icon {
+          padding: 4px;
+          opacity: 0.6;
+        }
+
+        .code-btn {
+          font-size: 12px;
+          color: #33C7F7;
+          border: 1px solid #33C7F7;
+          padding: 4px 8px;
+          border-radius: 4px;
+          white-space: nowrap;
+
+          &.disabled {
+            color: rgba(255, 255, 255, 0.4);
+            border-color: rgba(255, 255, 255, 0.4);
+          }
+        }
+
+        .forget-btn {
+          font-size: 12px;
+          color: #33C7F7;
+        }
+      }
+
+      .submit-btn {
+        width: 100%;
+        height: 48px;
+        line-height: 48px;
+        background: linear-gradient(to right, #2C439B, #33C7F7);
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 16px;
+        font-weight: bold;
+        margin-top: 24px;
+        margin-bottom: 16px;
+      }
+
+      .guest-link {
+        text-align: center;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: underline;
+      }
+    }
+
+    .agreement {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+
+      .checkbox {
+        width: 16px;
+        height: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .text {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        .link { color: #DFA0C8; }
+      }
+    }
+  }
+}

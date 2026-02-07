@@ -1,15 +1,6 @@
-/* 强制覆盖 NutUI 全局样式 */
 :root, page {
-    /* 1. 核心破案：覆盖截图里发现的那两个渐变变量 */
-    --nutui-color-primary-stop-1: #31a5df ;
-    --nutui-color-primary-stop-2: #2d64b2;
-  
-    // /* 2. 覆盖通用主色 (防止其他组件还是红的) */
-    // --nutui-color-primary: #31a5df ;
-    // --nutui-brand-color: #31a5df ;
-  
-    // /* 3. 针对按钮的强力覆盖 (如果上面还不行，这个一定行) */
-    // --nutui-button-primary-background-color: #1989fa ;
-    // --nutui-button-primary-border-color: #1989fa ;
-  }
-  
+  --nutui-brand-color: #fa2c19;
+  --nutui-color-primary: #fa2c19;
+  --nutui-color-primary-stop-1: #fa2c19;
+  --nutui-color-primary-stop-2: #fa6419;
+}
