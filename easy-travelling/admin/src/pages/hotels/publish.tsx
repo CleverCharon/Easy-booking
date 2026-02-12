@@ -231,7 +231,10 @@ export default function HotelPublishPage() {
           form={form}
           layout="vertical"
           onFinish={onFinish}
-          initialValues={{ roomTypes: [defaultRoomType], phoneCode: '+86', tagList: [''] }}
+          initialValues={{ roomTypes: [defaultRoomType], 
+                           phoneCode: '+86', 
+                           tagList: [''] 
+                          }}
           className="[&_.ant-form-item-label_label]:text-gray-700 [&_.ant-form-item-label_label]:font-medium"
           disabled={loadingDetail || readOnly}
         >
@@ -260,7 +263,7 @@ export default function HotelPublishPage() {
             <Form.Item label="联系电话">
               <Space.Compact className="w-full flex" size="middle">
                 <div className="w-1/3 shrink-0">
-                  <Form.Item name="phoneCode" noStyle initialValue="+86">
+                  <Form.Item name="phoneCode" noStyle > {/*noStyle initialValue="+86" 为重复设置*/}
                     <Select
                       size="large"
                       className="rounded-lg w-full"

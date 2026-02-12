@@ -94,8 +94,16 @@ export default function LoginPage() {
           }}
         >
           <div>
+            {/* 
             <h1 className="m-0 text-[44px] font-bold text-white tracking-[6px] drop-shadow-sm">易宿</h1>
             <p className="mt-2 text-base text-white/90 font-normal tracking-wide">Yi Su</p>
+            */}
+
+            {/*新代码，修改了易宿图标样式 */}
+            <h1 className="m-0 text-[66px] font-bold text-white tracking-[6px] drop-shadow-sm"
+                style={{ fontFamily: "'华文新魏', 'STXinwei', cursive" }}>易宿</h1>
+            <p className="mt-2 text-base text-white/90 font-normal tracking-[8px]">Yi Su</p>
+
             <p className="mt-2 text-[15px] text-white/80 tracking-wide">易宿管理端</p>
           </div>
           <div className="mt-12 w-full max-w-[280px] rounded-2xl py-6 px-5 backdrop-blur-md bg-white/10 border border-white/20 shadow-lg">
