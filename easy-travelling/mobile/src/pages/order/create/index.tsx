@@ -53,7 +53,7 @@ const CreateOrder = () => {
   return (
     <View className="order-create-page">
       <View className="nav-bar">
-        <Left onClick={() => Taro.navigateBack()} />
+        <ArrowLeft onClick={() => Taro.navigateBack()} />
         <Text className="title">确认订单</Text>
       </View>
 

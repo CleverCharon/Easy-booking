@@ -24,26 +24,26 @@ export default defineAppConfig({
       {
         pagePath: 'pages/home/index',
         text: '首页',
-        iconPath: 'assets/images/home.png',
-        selectedIconPath: 'assets/images/home-active.png'
+        iconPath: 'assets/images/tabbar/tab-home.png',
+        selectedIconPath: 'assets/images/tabbar/tab-home.png'
       },
       {
         pagePath: 'pages/list/index',
         text: '搜索',
-        iconPath: 'assets/images/search.png',
-        selectedIconPath: 'assets/images/search-active.png'
+        iconPath: 'assets/images/tabbar/tab-search.png',
+        selectedIconPath: 'assets/images/tabbar/tab-search.png'
       },
       {
-        pagePath: 'pages/favorite/index',
-        text: '收藏',
-        iconPath: 'assets/images/star.png',
-        selectedIconPath: 'assets/images/star-active.png'
+        pagePath: 'pages/order/index',
+        text: '数据',
+        iconPath: 'assets/images/tabbar/tab-data.png',
+        selectedIconPath: 'assets/images/tabbar/tab-data.png'
       },
       {
-        pagePath: 'pages/my/index',
+        pagePath: 'pages/user/index',
         text: '我的',
-        iconPath: 'assets/images/my.png',
-        selectedIconPath: 'assets/images/my-active.png'
+        iconPath: 'assets/images/tabbar/tab-profile.png',
+        selectedIconPath: 'assets/images/tabbar/tab-profile.png'
       }
     ]
   }

@@ -1,66 +1,134 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, Image, ScrollView } from '@tarojs/components'
+import { View, Text, Image, ScrollView, Input } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { Search, Heart, HeartFill, StarFill, Left, Location, Close } from '@nutui/icons-react-taro'
+import { Search, Heart, HeartFill, StarFill, Location, Close } from '@nutui/icons-react-taro'
 import { Button, Skeleton, Tag, Popup, Checkbox, Rate } from '@nutui/nutui-react-taro'
 import { useSearchStore } from '../../store/search'
 import { useFavoriteStore, Hotel } from '../../store/favorite'
+import { get } from '../../utils/request'
 import './index.scss'
 
 const ListPage = () => {
-  const { city, startDate, endDate, keyword, setKeyword } = useSearchStore()
+  const { 
+    city, startDate, endDate, keyword, setKeyword,
+    minPrice, maxPrice, starLevels, setPriceRange, setStarLevels
+  } = useSearchStore()
   const { isFavorite, addFavorite, removeFavorite } = useFavoriteStore()
   const [list, setList] = useState<Hotel[]>([])
+  const [filteredList, setFilteredList] = useState<Hotel[]>([])
   const [loading, setLoading] = useState(true)
   const [showFilter, setShowFilter] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
 
-  // Mock Data
+  // Local filter state for popup
+  const [localMinPrice, setLocalMinPrice] = useState(0)
+  const [localMaxPrice, setLocalMaxPrice] = useState(10000)
+  const [localStars, setLocalStars] = useState<string[]>([])
+
+  // Fetch Data
   useEffect(() => {
-    setLoading(true)
-    setTimeout(() => {
-      const mockHotels: Hotel[] = [
-        { 
-          id: '1', 
-          name: '广州珠江新城豪华公寓', 
-          image: 'https://img12.360buyimg.com/ling/jfs/t1/179505/16/40552/68310/67a57a8eF9682705a/3943365851410915.jpg', 
-          score: 4.8, 
-          price: 598, 
-          tags: ['优选民宿', '自助入住', '免费取消'], 
-          location: '1.2km' 
-        },
-        { 
-          id: '2', 
-          name: '天河商务中心精品酒店', 
-          image: 'https://img10.360buyimg.com/ling/jfs/t1/198797/16/32777/94747/67a57c5aF73351989/65d95393132e4d0d.jpg', 
-          score: 4.6, 
-          price: 428, 
-          tags: ['近地铁', '可停车', '含早餐'], 
-          location: '0.8km' 
-        },
-        { 
-          id: '3', 
-          name: '广州塔附近温馨民宿', 
-          image: 'https://img12.360buyimg.com/ling/jfs/t1/179505/16/40552/68310/67a57a8eF9682705a/3943365851410915.jpg', 
-          score: 4.7, 
-          price: 328, 
-          tags: ['免费取消', '自助入住', '近景点'], 
-          location: '2.1km' 
-        },
-        { 
-          id: '4', 
-          name: '珠江夜景观景酒店', 
-          image: 'https://img10.360buyimg.com/ling/jfs/t1/198797/16/32777/94747/67a57c5aF73351989/65d95393132e4d0d.jpg', 
-          score: 4.9, 
-          price: 798, 
-          tags: ['景观房', '含早餐', '免费WiFi'], 
-          location: '0.5km' 
-        }
-      ]
-      setList(mockHotels)
-      setLoading(false)
-    }, 1000)
-  }, [])
+    const fetchHotels = async () => {
+      setLoading(true)
+      try {
+        const res = await get(`/hotels?city_name=${city}`)
+        
+        const hotelList = res.map((h: any) => ({
+          id: String(h.id),
+          name: h.name,
+          image: h.main_image || 'https://via.placeholder.com/300',
+          score: Number(h.score),
+          price: Number(h.min_price),
+          tags: h.brand ? [h.brand] : [],
+          location: '距离市中心',
+          star: Number(h.star_level) || 3
+        }))
+        setList(hotelList)
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchHotels()
+  }, [city])
+
+  // Filter Logic
+  useEffect(() => {
+    let res = list
+
+    // 1. Keyword filter
+    if (keyword) {
+      res = res.filter(h => h.name.includes(keyword) || h.tags.includes(keyword))
+    }
+
+    // 2. Price filter
+    if (maxPrice < 10000 || minPrice > 0) {
+      res = res.filter(h => h.price >= minPrice && h.price <= maxPrice)
+    }
+
+    // 3. Star filter
+    if (starLevels.length > 0) {
+      // Map string levels to numbers
+      // ['二星/经济', '三星/舒适', '四星/高档', '五星/豪华']
+      const targetStars: number[] = []
+      if (starLevels.includes('二星/经济')) targetStars.push(2)
+      if (starLevels.includes('三星/舒适')) targetStars.push(3)
+      if (starLevels.includes('四星/高档')) targetStars.push(4)
+      if (starLevels.includes('五星/豪华')) targetStars.push(5)
+      
+      if (targetStars.length > 0) {
+        res = res.filter(h => h.star && targetStars.includes(h.star))
+      }
+    }
+
+    // 4. Chip filters (simple implementation)
+    if (selectedFilters.length > 0) {
+      // Example: '含早餐' -> check tags or just ignore for now if data missing
+      // For demo, we just simulate filtering if tag matches
+      // res = res.filter(...)
+    }
+
+    setFilteredList(res)
+  }, [list, keyword, minPrice, maxPrice, starLevels, selectedFilters])
+
+  const openFilter = () => {
+    setLocalMinPrice(minPrice)
+    setLocalMaxPrice(maxPrice)
+    setLocalStars(starLevels)
+    setShowFilter(true)
+  }
+
+  const applyFilter = () => {
+    setPriceRange(localMinPrice, localMaxPrice)
+    setStarLevels(localStars)
+    setShowFilter(false)
+  }
+
+  const resetFilter = () => {
+    setLocalMinPrice(0)
+    setLocalMaxPrice(10000)
+    setLocalStars([])
+  }
+
+  const toggleLocalStar = (star: string) => {
+    if (localStars.includes(star)) {
+      setLocalStars(localStars.filter(s => s !== star))
+    } else {
+      setLocalStars([...localStars, star])
+    }
+  }
+
+  const priceOptions = [
+    { label: '不限', min: 0, max: 10000 },
+    { label: '¥150以下', min: 0, max: 150 },
+    { label: '¥150-300', min: 150, max: 300 },
+    { label: '¥300-450', min: 300, max: 450 },
+    { label: '¥450-600', min: 450, max: 600 },
+    { label: '¥600-1000', min: 600, max: 1000 },
+    { label: '¥1000以上', min: 1000, max: 10000 }
+  ]
+
+  const starOptions = ['二星/经济', '三星/舒适', '四星/高档', '五星/豪华']
 
   const toggleFav = (e: any, hotel: Hotel) => {
     e.stopPropagation()
@@ -105,7 +173,13 @@ const ListPage = () => {
           </View>
           <View className="input-wrap">
              <Search size={12} color="#999" className="icon" />
-             <Text className="text">{keyword || '位置/民宿名/编号'}</Text>
+             <Input
+               className="search-input"
+               placeholder="位置/民宿名/编号"
+               placeholderClass="placeholder"
+               value={keyword}
+               onInput={(e) => setKeyword(e.detail.value)}
+             />
           </View>
         </View>
         <View className="map-btn"><Location size={20} color="#25255F" /></View>
@@ -114,7 +188,7 @@ const ListPage = () => {
       {/* Filter Bar */}
       <View className="filter-bar">
         {['位置/距离', '价格/等级', '人数/床数', '筛选/排序'].map((f, i) => (
-          <View key={i} className="filter-item" onClick={() => setShowFilter(true)}>
+          <View key={i} className="filter-item" onClick={openFilter}>
             <Text>{f}</Text>
           </View>
         ))}
@@ -146,7 +220,7 @@ const ListPage = () => {
             ))}
           </View>
         ) : (
-          list.map(hotel => (
+          filteredList.map(hotel => (
             <View key={hotel.id} className="hotel-card" onClick={() => goDetail(hotel.id)}>
               <View className="img-wrapper">
                 <Image src={hotel.image} className="hotel-img" mode="aspectFill" />
@@ -197,21 +271,43 @@ const ListPage = () => {
              <View className="section">
                <Text className="label">星级</Text>
                <View className="stars">
-                 {[1,2,3,4,5].map(s => <StarFill key={s} color="#33C7F7" size={24} style={{ marginRight: 8 }} />)}
+                 {starOptions.map(star => (
+                   <View 
+                     key={star} 
+                     className={`star-opt ${localStars.includes(star) ? 'active' : ''}`}
+                     onClick={() => toggleLocalStar(star)}
+                   >
+                     {star}
+                   </View>
+                 ))}
                </View>
              </View>
              <View className="section">
                <Text className="label">价格区间</Text>
                <View className="price-opts">
-                 {['不限', '¥100-200', '¥200-400', '¥400以上'].map(p => (
-                   <View key={p} className="opt-item">{p}</View>
-                 ))}
+                 {priceOptions.map((p, i) => {
+                   const isActive = localMinPrice === p.min && localMaxPrice === p.max
+                   return (
+                     <View 
+                       key={i} 
+                       className={`opt-item ${isActive ? 'active' : ''}`}
+                       onClick={() => {
+                         setLocalMinPrice(p.min)
+                         setLocalMaxPrice(p.max)
+                       }}
+                     >
+                       {p.label}
+                     </View>
+                   )
+                 })}
                </View>
              </View>
           </ScrollView>
           <View className="popup-footer">
-            <Button className="reset-btn">重置</Button>
-            <Button className="confirm-btn">查看124家</Button>
+            <Button className="reset-btn" onClick={resetFilter}>重置</Button>
+            <Button className="confirm-btn" type="primary" onClick={applyFilter}>
+              查看{filteredList.length}家
+            </Button>
           </View>
         </View>
       </Popup>

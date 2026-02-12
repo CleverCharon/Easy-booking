@@ -8,6 +8,7 @@ export interface Hotel {
   price: number
   tags: string[]
   location?: string
+  star?: number
 }
 
 interface FavoriteState {

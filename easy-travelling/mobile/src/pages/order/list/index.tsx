@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { View, Text, Image, ScrollView } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { Tabs, TabPane, Button, Tag } from '@nutui/nutui-react-taro'
-import { Left } from '@nutui/icons-react-taro'
+import { ArrowLeft } from '@nutui/icons-react-taro'
 import { useOrderStore } from '../../../store/order'
 import './index.scss'
 
@@ -23,7 +23,7 @@ const OrderList = () => {
   return (
     <View className="order-list-page">
       <View className="nav-bar">
-        <Left onClick={() => Taro.navigateBack()} />
+        <ArrowLeft onClick={() => Taro.navigateBack()} />
         <Text className="title">我的订单</Text>
       </View>
 

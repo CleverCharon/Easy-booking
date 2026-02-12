@@ -10,7 +10,7 @@ import { useUserStore } from '../../store/user'
 import './index.scss'
 
 const MyPage = () => {
-  const { isLogin, userInfo } = useUserStore()
+  const { isLogin, userInfo, logout } = useUserStore()
   const [scrollTop, setScrollTop] = useState(0)
 
   usePageScroll((res) => {
@@ -21,6 +21,19 @@ const MyPage = () => {
     if (!isLogin) {
       Taro.navigateTo({ url: '/pages/login/index' })
     }
+  }
+
+  const handleLogout = () => {
+    Taro.showModal({
+      title: '提示',
+      content: '确定要退出登录吗？',
+      success: (res) => {
+        if (res.confirm) {
+          logout()
+          Taro.showToast({ title: '已退出', icon: 'none' })
+        }
+      }
+    })
   }
 
   const menuItems = [
@@ -202,6 +215,15 @@ const MyPage = () => {
               <Right size={12} color="#ccc" />
             </View>
           ))}
+          {isLogin && (
+            <View className="row" onClick={handleLogout}>
+              <View className="left">
+                <Setting color="#33C7F7" />
+                <Text className="txt">退出登录</Text>
+              </View>
+              <Right size={12} color="#ccc" />
+            </View>
+          )}
         </View>
 
         <View style={{ height: 100 }} />

@@ -69,6 +69,10 @@ export default defineConfig<'vite'>(async (merge, { command, mode }) => {
         chunkFilename: 'css/[name].[chunkhash].css'
       },
       postcss: {
+        tailwindcss: {
+          enable: true,
+          config: {}
+        },
         autoprefixer: {
           enable: true,
           config: {}
