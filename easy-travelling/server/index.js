@@ -281,13 +281,28 @@ app.get('/api/hotels/my', authMiddleware, (req, res) => {
   }
   const sql = `SELECT id, merchant_id, name, city, address, phone, price, star_level, tags, image_url, description, status, create_time 
     FROM hotels WHERE merchant_id = ? ORDER BY create_time DESC`;
-  db.query(sql, [req.user.userId], (err, rows) => {
+  
+  const params = [req.user.userId];
+
+  // ✅ 修改：添加详细错误日志
+  db.query(sql, params, (err, rows) => {
     if (err) {
-      console.error('查询我的酒店失败:', err);
-      return res.status(500).json({ success: false, message: '服务器错误' });
+      console.error('❌ 查询我的酒店失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
+      
+      return res.status(500).json({ 
+        success: false, 
+        message: '查询酒店列表失败', 
+        error: err.message,
+        code: err.code 
+      });
     }
     res.json(rows || []);
-  });
+  })
 });
 
 // ==========================================
@@ -317,25 +332,60 @@ app.post('/api/hotels', authMiddleware, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())`;
   const insValues = [req.user.userId, String(name).trim(), String(city).trim(), String(address).trim(), phone ? String(phone).trim() : null, priceNum, starNum, tagsStr || null, image_url ? String(image_url).trim() : null, description ? String(description).trim() : null];
 
+  // ✅ 修改1：插入酒店的错误处理
   db.query(insSql, insValues, (err, result) => {
     if (err) {
-      console.error('发布酒店-插入hotels失败:', err);
-      return res.status(500).json({ success: false, message: '服务器错误，发布失败' });
+      console.error('❌ 发布酒店-插入hotels失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', insSql);
+      console.error('   参数:', insValues);
+      console.error('   完整错误:', err);
+      
+      return res.status(500).json({ 
+        success: false, 
+        message: '发布酒店失败', 
+        error: err.message,
+        code: err.code 
+      });
     }
+    
     const hotelId = result.insertId;
     const rtSql = 'INSERT INTO room_types (hotel_id, name, price, description, image_url) VALUES (?, ?, ?, ?, ?)';
     let done = 0;
+    let hasError = false;
     const total = roomTypes.length;
+    
     if (total === 0) {
       return res.json({ success: true, message: '发布成功', hotelId });
     }
+    
     for (const rt of roomTypes) {
       const rtDesc = rt.description ? String(rt.description).trim() : null;
       const rtImg = rt.image_url ? String(rt.image_url).trim() : null;
-      db.query(rtSql, [hotelId, String(rt.name).trim(), Number(rt.price), rtDesc, rtImg], (errRt) => {
-        if (errRt) console.error('插入房型失败:', errRt);
+      const rtValues = [hotelId, String(rt.name).trim(), Number(rt.price), rtDesc, rtImg];
+      
+      // ✅ 修改2：插入房型的错误处理
+      db.query(rtSql, rtValues, (errRt) => {
+        if (errRt) {
+          console.error('❌ 插入房型失败:');
+          console.error('   错误代码:', errRt.code);
+          console.error('   错误信息:', errRt.message);
+          console.error('   SQL语句:', rtSql);
+          console.error('   参数:', rtValues);
+          console.error('   完整错误:', errRt);
+          hasError = true;
+        }
+        
         done += 1;
         if (done === total) {
+          if (hasError) {
+            return res.status(500).json({ 
+              success: false, 
+              message: '部分房型插入失败，请检查数据',
+              hotelId: hotelId 
+            });
+          }
           res.json({ success: true, message: '发布成功', hotelId });
         }
       });
@@ -376,10 +426,57 @@ app.patch('/api/hotels/:id/status', authMiddleware, (req, res) => {
   const { status } = req.body;
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
   if (status !== 2) return res.status(400).json({ success: false, message: '仅支持退回为已拒绝' });
-  const sql = 'UPDATE hotels SET status = ?, cancellation = ? WHERE id = ? AND merchant_id = ?';
-  db.query(sql, [status, '商家自行退回申请', id, req.user.userId], (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
-    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+  const sql = 'UPDATE hotels SET status = ? WHERE id = ? AND merchant_id = ?';
+  const params = [status, id, req.user.userId];
+
+  db.query(sql, params, (err, result) => {
+    // ✅ 关键修改：显示真实数据库错误
+    if (err) {
+      console.error('❌ 酒店退回申请失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
+      
+      // 根据错误类型返回更具体的提示
+      if (err.code === 'ER_NO_SUCH_TABLE') {
+        return res.status(500).json({ 
+          success: false, 
+          message: '数据库表不存在，请检查hotels表', 
+          error: err.message 
+        });
+      }
+      if (err.code === 'ER_BAD_FIELD_ERROR') {
+        return res.status(500).json({ 
+          success: false, 
+          message: '数据库字段不存在，请检查cancellation字段', 
+          error: err.message 
+        });
+      }
+      if (err.code === 'ER_PARSE_ERROR') {
+        return res.status(500).json({ 
+          success: false, 
+          message: 'SQL语法错误', 
+          error: err.message 
+        });
+      }
+      
+      return res.status(500).json({ 
+        success: false, 
+        message: '数据库操作失败', 
+        error: err.message,
+        code: err.code 
+      });
+    }
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '酒店不存在或无权限操作' 
+      });
+    }
+    
     res.json({ success: true, message: '已退回申请' });
   });
 });
@@ -488,7 +585,8 @@ app.put('/api/hotels/:id', authMiddleware, (req, res) => {
 
 // 已发布列表：status IN (1 已发布, 3 已下线)，关联商户名称，按创建时间倒序
 app.get('/api/admin/hotels/published', authMiddleware, adminMiddleware, (req, res) => {
-  const sql = `SELECT h.id, h.merchant_id, h.name, h.city, h.address, h.phone, h.price, h.star_level, h.tags, h.image_url, h.description, h.status, h.cancellation, h.create_time, h.update_time,
+  // ✅ 修改：去掉 h.cancellation 字段
+  const sql = `SELECT h.id, h.merchant_id, h.name, h.city, h.address, h.phone, h.price, h.star_level, h.tags, h.image_url, h.description, h.status, h.create_time, h.update_time,
     u.username AS merchant_name
     FROM hotels h
     LEFT JOIN sys_users u ON u.id = h.merchant_id
@@ -504,6 +602,7 @@ app.get('/api/admin/hotels/published', authMiddleware, adminMiddleware, (req, re
 
 // 待审核列表：status=0，关联商户名称
 app.get('/api/admin/hotels/pending', authMiddleware, adminMiddleware, (req, res) => {
+  // ✅ 这个接口本来就没有 cancellation，不用改，但可以加错误日志
   const sql = `SELECT h.id, h.merchant_id, h.name, h.city, h.address, h.phone, h.price, h.star_level, h.tags, h.image_url, h.description, h.status, h.create_time,
     u.username AS merchant_name
     FROM hotels h
@@ -512,8 +611,12 @@ app.get('/api/admin/hotels/pending', authMiddleware, adminMiddleware, (req, res)
     ORDER BY h.create_time DESC`;
   db.query(sql, [], (err, rows) => {
     if (err) {
-      console.error('管理员-待审核列表失败:', err);
-      return res.status(500).json({ success: false, message: '服务器错误' });
+      console.error('❌ 管理员-待审核列表失败:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '查询待审核列表失败', 
+        error: err.message 
+      });
     }
     res.json(rows || []);
   });
@@ -552,12 +655,27 @@ app.post('/api/admin/hotels/:id/reject', authMiddleware, adminMiddleware, (req, 
   const id = parseInt(req.params.id, 10);
   const { reason } = req.body || {};
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
-  const sql = 'UPDATE hotels SET status = 2, cancellation = ? WHERE id = ? AND status = 0';
-  db.query(sql, [reason ? String(reason).trim() : null, id], (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
-    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '酒店不存在或非待审核状态' });
+  // ✅ 暂时只更新 status，不更新 cancellation
+  const sql = 'UPDATE hotels SET status = 2 WHERE id = ? AND status = 0';
+
+  db.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error('❌ 拒绝审核失败:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '拒绝失败', 
+        error: err.message 
+      });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '酒店不存在或非待审核状态' 
+      });
+    }
     res.json({ success: true, message: '已拒绝' });
   });
+
 });
 
 // 下线：仅将 status 置为 3、写入 cancellation、update_time 置为当前时间，不删除数据库与 OSS
