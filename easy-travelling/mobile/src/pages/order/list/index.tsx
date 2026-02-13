@@ -1,23 +1,57 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, Image, ScrollView } from '@tarojs/components'
-import Taro from '@tarojs/taro'
-import { Tabs, TabPane, Button, Tag } from '@nutui/nutui-react-taro'
+import Taro, { useDidShow } from '@tarojs/taro'
+import { Tabs, TabPane, Button } from '@nutui/nutui-react-taro'
 import { ArrowLeft } from '@nutui/icons-react-taro'
-import { useOrderStore } from '../../../store/order'
+import { get } from '../../../utils/request'
 import './index.scss'
 
+interface Order {
+  id: number
+  hotel_name: string
+  room_type_name: string
+  check_in_date: string
+  check_out_date: string
+  total_price: number
+  status: number
+  // extra
+  hotel_image?: string 
+}
+
 const OrderList = () => {
-  const { orders } = useOrderStore()
+  const [orders, setOrders] = useState<Order[]>([])
   const [activeTab, setActiveTab] = useState('all')
 
-  const filterOrders = (status: string) => {
-    if (status === 'all') return orders
-    return orders.filter(o => o.status === status)
+  const fetchOrders = async () => {
+    try {
+      const res = await get('/bookings/my-list')
+      // Map server response if needed
+      // Server returns check_in_date as full date string, let's format it
+      const mapped = res.map((o: any) => ({
+        ...o,
+        check_in_date: o.check_in_date.slice(0, 10),
+        check_out_date: o.check_out_date.slice(0, 10),
+        hotel_image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=200&q=80' // Placeholder
+      }))
+      setOrders(mapped)
+    } catch (e) {
+      console.error(e)
+    }
   }
 
-  const getStatusText = (status: string) => {
-    const map = { pending: '待支付', paid: '已支付', cancelled: '已取消', completed: '已完成' }
-    return map[status] || status
+  useDidShow(() => {
+    fetchOrders()
+  })
+
+  const filterOrders = (tab: string) => {
+    if (tab === 'all') return orders
+    const statusMap: Record<string, number> = { 'pending': 0, 'paid': 1, 'cancelled': 2, 'completed': 3 }
+    return orders.filter(o => o.status === statusMap[tab])
+  }
+
+  const getStatusText = (status: number) => {
+    const map = { 0: '待支付', 1: '已支付', 2: '已取消', 3: '已完成' }
+    return map[status] || '未知'
   }
 
   return (
@@ -43,20 +77,20 @@ const OrderList = () => {
           filterOrders(activeTab).map(order => (
             <View key={order.id} className="order-card">
               <View className="card-header">
-                <Text className="hotel-name">{order.hotelName}</Text>
+                <Text className="hotel-name">{order.hotel_name}</Text>
                 <Text className="status">{getStatusText(order.status)}</Text>
               </View>
               <View className="card-body">
-                <Image src={order.hotelImage} className="hotel-img" mode="aspectFill" />
+                <Image src={order.hotel_image || ''} className="hotel-img" mode="aspectFill" />
                 <View className="info">
-                  <Text className="room-name">{order.roomName}</Text>
-                  <Text className="dates">{order.checkIn} - {order.checkOut} {order.nights}晚</Text>
-                  <Text className="price">¥{order.price}</Text>
+                  <Text className="room-name">{order.room_type_name}</Text>
+                  <Text className="dates">{order.check_in_date} - {order.check_out_date}</Text>
+                  <Text className="price">¥{order.total_price}</Text>
                 </View>
               </View>
               <View className="card-footer">
-                {order.status === 'pending' && <Button size="small" type="primary" className="action-btn">去支付</Button>}
-                {order.status === 'paid' && <Button size="small" className="action-btn">查看详情</Button>}
+                {order.status === 0 && <Button size="small" type="primary" className="action-btn">去支付</Button>}
+                {order.status === 1 && <Button size="small" className="action-btn">查看详情</Button>}
                 <Button size="small" className="action-btn">再次预订</Button>
               </View>
             </View>

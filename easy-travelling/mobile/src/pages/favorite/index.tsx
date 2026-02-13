@@ -1,26 +1,45 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, Image, ScrollView } from '@tarojs/components'
-import Taro from '@tarojs/taro'
+import Taro, { useDidShow } from '@tarojs/taro'
 import { Button, Toast } from '@nutui/nutui-react-taro'
-import { HeartFill, StarFill, Location, Check, Close, TriangleDown } from '@nutui/icons-react-taro'
-import { useFavoriteStore } from '../../store/favorite'
+import { HeartFill, StarFill, Close, ArrowDown, Check } from '@nutui/icons-react-taro'
+import { useUserStore } from '../../store/user'
+import { get, post } from '../../utils/request'
 import './index.scss'
 
 const FavoritePage = () => {
-  const { favorites, history, removeFavorite } = useFavoriteStore()
+  const { userInfo } = useUserStore()
   const [activeTab, setActiveTab] = useState<'collected' | 'viewed'>('collected')
+  const [list, setList] = useState<any[]>([])
   const [isManaging, setIsManaging] = useState(false)
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [city, setCity] = useState('全部城市')
   const [sortOption, setSortOption] = useState('最近收藏')
 
-  // Mock "viewed" data for demo if empty
-  const mockViewed = [
-    { id: '4', name: '【都市绿洲】市中心精品公寓', score: 4.7, reviewCount: 38, price: 198, oldPrice: 250, saved: 52, location: '上海·陆家嘴', roomType: '1居1床2人·整套·35㎡', tags: ['地铁直达', '智能家居'], image: 'https://img12.360buyimg.com/ling/jfs/t1/179505/16/40552/68310/67a57a8eF9682705a/3943365851410915.jpg' },
-    { id: '5', name: '【湖畔雅居】湖景休闲度假屋', score: 4.6, reviewCount: 22, price: 265, oldPrice: 320, saved: 55, location: '苏州·金鸡湖', roomType: '2居2床4人·整套·55㎡', tags: ['湖景房', '观景阳台'], image: 'https://img10.360buyimg.com/ling/jfs/t1/198797/16/32777/94747/67a57c5aF73351989/65d95393132e4d0d.jpg' }
-  ]
+  const fetchData = async () => {
+    if (!userInfo?.id) return
+    try {
+      const endpoint = activeTab === 'collected' ? '/favorites/list' : '/history/list'
+      const res = await get(`${endpoint}?user_id=${userInfo.id}`)
+      setList(res)
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
-  const list = activeTab === 'collected' ? favorites : (history.length > 0 ? history : mockViewed)
+  useDidShow(() => {
+    if (!userInfo?.id) {
+      Toast.show('请先登录')
+      // Optional: Redirect to login
+      // Taro.navigateTo({ url: '/pages/login/index' })
+    } else {
+      fetchData()
+    }
+  })
+
+  useEffect(() => {
+    fetchData()
+  }, [activeTab, userInfo])
 
   const toggleSelection = (id: string) => {
     if (selectedItems.includes(id)) {
@@ -36,12 +55,16 @@ const FavoritePage = () => {
   }
 
   const handleCancelCollection = () => {
+    if (!userInfo) return
     Taro.showModal({
       title: '提示',
       content: '确定要取消收藏选中的酒店吗？',
-      success: (res) => {
+      success: async (res) => {
         if (res.confirm) {
-          selectedItems.forEach(id => removeFavorite(id))
+          for (const hotelId of selectedItems) {
+             await post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotelId })
+          }
+          fetchData() // Refresh
           setSelectedItems([])
           setIsManaging(false)
           Toast.show('已取消收藏')
@@ -53,6 +76,15 @@ const FavoritePage = () => {
   const goDetail = (id: string) => {
     if (isManaging) return
     Taro.navigateTo({ url: `/pages/detail/index?id=${id}` })
+  }
+
+  if (!userInfo) {
+     return (
+        <View className="favorite-page-v2 flex flex-col items-center justify-center h-screen bg-white">
+           <Text className="mb-4 text-gray-500">请先登录后查看收藏</Text>
+           <Button type="primary" onClick={() => Taro.navigateTo({ url: '/pages/login/index' })}>去登录</Button>
+        </View>
+     )
   }
 
   return (
@@ -109,7 +141,7 @@ const FavoritePage = () => {
           onClick={() => setSortOption(sortOption === '最近收藏' ? '价格最低' : '最近收藏')}
         >
           <Text className={sortOption !== '最近收藏' ? 'blue' : ''}>{sortOption}</Text>
-          <TriangleDown size={10} color={sortOption !== '最近收藏' ? '#33C7F7' : '#999'} />
+          <ArrowDown size={10} color={sortOption !== '最近收藏' ? '#33C7F7' : '#999'} />
         </View>
       </View>
 

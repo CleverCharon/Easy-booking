@@ -7,7 +7,8 @@ export default defineAppConfig({
     'pages/my/index',
     'pages/order/create/index',
     'pages/order/list/index',
-    'pages/login/index'
+    'pages/login/index',
+    'pages/login/setup/index'
   ],
   window: {
     backgroundTextStyle: 'light',
@@ -24,26 +25,26 @@ export default defineAppConfig({
       {
         pagePath: 'pages/home/index',
         text: '首页',
-        iconPath: 'assets/images/tabbar/tab-home.png',
-        selectedIconPath: 'assets/images/tabbar/tab-home.png'
+        iconPath: '/assets/images/tabbar/tab-home.png',
+        selectedIconPath: '/assets/images/tabbar/tab-home.png'
       },
       {
         pagePath: 'pages/list/index',
         text: '搜索',
-        iconPath: 'assets/images/tabbar/tab-search.png',
-        selectedIconPath: 'assets/images/tabbar/tab-search.png'
+        iconPath: '/assets/images/tabbar/tab-search.png',
+        selectedIconPath: '/assets/images/tabbar/tab-search.png'
       },
       {
-        pagePath: 'pages/order/index',
-        text: '数据',
-        iconPath: 'assets/images/tabbar/tab-data.png',
-        selectedIconPath: 'assets/images/tabbar/tab-data.png'
+        pagePath: 'pages/favorite/index',
+        text: '收藏',
+        iconPath: '/assets/images/tabbar/tab-data.png',
+        selectedIconPath: '/assets/images/tabbar/tab-data.png'
       },
       {
-        pagePath: 'pages/user/index',
+        pagePath: 'pages/my/index',
         text: '我的',
-        iconPath: 'assets/images/tabbar/tab-profile.png',
-        selectedIconPath: 'assets/images/tabbar/tab-profile.png'
+        iconPath: '/assets/images/tabbar/tab-profile.png',
+        selectedIconPath: '/assets/images/tabbar/tab-profile.png'
       }
     ]
   }

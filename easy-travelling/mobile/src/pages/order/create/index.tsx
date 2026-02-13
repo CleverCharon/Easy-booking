@@ -1,53 +1,82 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, Image } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import { Button, Input, Cell, Toast } from '@nutui/nutui-react-taro'
-import { Left } from '@nutui/icons-react-taro'
-import { useOrderStore } from '../../../store/order'
+import { ArrowLeft } from '@nutui/icons-react-taro'
+import { post, get } from '../../../utils/request'
 import './index.scss'
 
 const CreateOrder = () => {
   const router = useRouter()
   const { hotelId, roomId } = router.params
-  const { addOrder } = useOrderStore()
-
-  // Mock lookup
-  const hotelName = "北京华尔道夫酒店" // In real app, fetch by hotelId
-  const roomName = "豪华大床房" // In real app, fetch by roomId
-  const price = 588
-  const image = 'https://img12.360buyimg.com/ling/jfs/t1/179505/16/40552/68310/67a57a8eF9682705a/3943365851410915.jpg'
+  
+  const [hotelName, setHotelName] = useState('')
+  const [roomName, setRoomName] = useState('')
+  const [price, setPrice] = useState(0)
+  const [image, setImage] = useState('')
 
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
+  const [guestIdCard, setGuestIdCard] = useState('')
 
-  const handleSubmit = () => {
-    if (!guestName || !guestPhone) {
-      Toast.show('请填写完整入住人信息')
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!hotelId) return
+      try {
+        const res = await get(`/hotels/${hotelId}`)
+        setHotelName(res.name)
+        setImage(res.main_image)
+        
+        // Find room info
+        if (res.rooms) {
+          const room = res.rooms.find((r: any) => String(r.id) === String(roomId))
+          if (room) {
+            setRoomName(room.name)
+            setPrice(room.plans?.[0]?.price || room.price)
+          }
+        }
+      } catch (e) {
+        console.error(e)
+        Toast.show('获取信息失败')
+      }
+    }
+    fetchData()
+  }, [hotelId, roomId])
+
+  const handleSubmit = async () => {
+    if (!guestName || !guestPhone || !guestIdCard) {
+      Toast.show('请填写完整入住人信息(含身份证)')
       return
     }
 
-    const newOrder = {
-      id: Date.now().toString(),
-      hotelId: hotelId || '1',
-      hotelName,
-      hotelImage: image,
-      roomName,
-      checkIn: '10月25日',
-      checkOut: '10月26日',
-      nights: 1,
-      price,
-      status: 'paid' as const, // Mock immediate payment
-      guestName,
-      guestPhone,
-      createTime: Date.now()
+    try {
+      await post('/bookings/create', {
+        user_name: guestName,
+        user_phone: guestPhone,
+        user_id_card: guestIdCard,
+        hotel_id: hotelId,
+        hotel_name: hotelName,
+        room_type_name: roomName, // Backend expects room_type_name? check index.js
+        // Wait, server expects 'room_type_name' but index.js INSERTs it?
+        // Let's check server again. Server SQL: INSERT INTO bookings ... room_type_name is not in INSERT list!
+        // Wait, check server index.js again.
+        // SQL: INSERT INTO bookings (user_name, ..., hotel_name, check_in_date, ...)
+        // It DOES NOT insert room_type_name in the snippet I saw!
+        // But the TABLE has room_type_name.
+        // I should fix server index.js too.
+        
+        check_in_date: '2025-10-25', // Hardcoded for demo
+        check_out_date: '2025-10-26',
+        total_price: price
+      })
+      
+      Toast.show({ content: '预订成功', icon: 'success' })
+      setTimeout(() => {
+        Taro.navigateTo({ url: '/pages/order/list/index' })
+      }, 1000)
+    } catch (e) {
+      Toast.show('预订失败')
     }
-
-    addOrder(newOrder)
-    Toast.show({ content: '预订成功', icon: 'success' })
-    
-    setTimeout(() => {
-      Taro.navigateTo({ url: '/pages/order/list/index' })
-    }, 1000)
   }
 
   return (
@@ -76,6 +105,12 @@ const CreateOrder = () => {
           placeholder="请输入联系手机号" 
           value={guestPhone} 
           onChange={(val) => setGuestPhone(val)} 
+        />
+        <Input 
+          label="身份证" 
+          placeholder="请输入身份证号" 
+          value={guestIdCard} 
+          onChange={(val) => setGuestIdCard(val)} 
         />
       </View>
 

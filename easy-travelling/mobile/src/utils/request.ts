@@ -16,14 +16,33 @@ export const request = async (url: string, options: Taro.request.Option = {}) =>
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response.data
     } else {
-      Taro.showToast({
-        title: response.data.message || '请求失败',
-        icon: 'none'
-      })
+      // 区分不同错误类型
+      if (response.data.message && (
+          response.data.message.includes('密码') || 
+          response.data.message.includes('账号') ||
+          response.data.message.includes('验证码') ||
+          response.data.message.includes('短信')
+      )) {
+        Taro.showToast({
+          title: response.data.message,
+          icon: 'none'
+        })
+      } else {
+        Taro.showToast({
+          title: response.data.message || '请求失败',
+          icon: 'none'
+        })
+      }
       throw new Error(response.data.message || '请求失败')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Request Error:', error)
+    
+    // 如果已经是 Error 对象且有 message（通常是上面 throw 的业务错误），直接抛出，不再弹网络错误
+    if (error.message && error.message !== 'request:fail') {
+       throw error
+    }
+
     Taro.showToast({
       title: '网络错误',
       icon: 'none'

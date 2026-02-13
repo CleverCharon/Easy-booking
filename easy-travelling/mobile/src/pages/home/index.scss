@@ -11,6 +11,25 @@
     z-index: 2000 !important;
   }
 
+  /* 确保 Picker 的 mask 不会阻挡交互 */
+.nut-picker-mask {
+  // 尝试调整一下
+}
+
+.nut-picker-content {
+  // 增加高度，确保能滚动
+  min-height: 300px;
+}
+
+.nut-picker-list {
+  min-height: 300px;
+}
+
+.nut-picker-roller-item {
+  height: 36px;
+  line-height: 36px;
+}
+
   /* Force extra padding for the confirm button container */
   .nut-calendar .nut-calendar-footer {
     padding-bottom: 60px !important; /* Increase hard padding */

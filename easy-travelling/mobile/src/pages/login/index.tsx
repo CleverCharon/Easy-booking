@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, Image } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { Button, Input, Toast } from '@nutui/nutui-react-taro'
 import { Close, Check } from '@nutui/icons-react-taro'
 import { useUserStore } from '../../store/user'
+import { post } from '../../utils/request'
 import './index.scss'
 
 const LoginPage = () => {
@@ -14,26 +15,39 @@ const LoginPage = () => {
   const [loginMethod, setLoginMethod] = useState<'code' | 'password'>('code')
   const [countdown, setCountdown] = useState(0)
   const [agreed, setAgreed] = useState(false)
+  const [isWeapp, setIsWeapp] = useState(false)
 
-  const handleGetCode = () => {
+  useEffect(() => {
+    // Check if running in Wechat Mini Program
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+      setIsWeapp(true)
+    }
+  }, [])
+
+  const handleGetCode = async () => {
     if (phone && phone.length === 11) {
-      setCountdown(60)
-      const timer = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(timer)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-      Toast.show('验证码已发送')
+      try {
+        await post('/sms/send', { phone })
+        setCountdown(60)
+        const timer = setInterval(() => {
+          setCountdown(prev => {
+            if (prev <= 1) {
+              clearInterval(timer)
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+        Toast.show('验证码已发送')
+      } catch (e: any) {
+        // Toast handled by request.ts usually, but ensure we catch it
+      }
     } else {
       Toast.show('请输入正确的手机号')
     }
   }
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!agreed) {
       Toast.show('请先阅读并同意协议')
       return
@@ -51,24 +65,68 @@ const LoginPage = () => {
       return
     }
 
-    // Mock login
-    login({
-      id: 'u1',
-      nickname: `用户${phone.slice(-4)}`,
-      avatar: 'https://img12.360buyimg.com/imagetools/jfs/t1/196430/38/8105/14329/60c806a4Ed506298a/e6de9fb7b8490f38.png',
-      phone
-    })
-    Toast.show({ content: '登录成功', icon: 'success' })
-    setTimeout(() => {
-      Taro.navigateBack()
-    }, 1000)
+    try {
+      const res = await post('/user/login', { phone, code, password, method: loginMethod })
+      
+      // If new user (needs setup)
+      if (res.is_new) {
+        Toast.show('请设置账号密码')
+        setTimeout(() => {
+          Taro.navigateTo({ url: `/pages/login/setup/index?userId=${res.id}&phone=${res.phone}` })
+        }, 1000)
+        return
+      }
+
+      if (res && res.id) {
+        login(res)
+        Toast.show({ content: '登录成功', icon: 'success' })
+        setTimeout(() => {
+          Taro.navigateBack()
+        }, 1000)
+      } else {
+        Toast.show('登录失败')
+      }
+    } catch (e: any) {
+      console.error(e)
+      // 如果不是已处理的业务错误（如密码错误），才显示通用提示
+      if (!e.message || !e.message.includes('密码')) {
+         Toast.show(e.message || '登录异常')
+      }
+    }
+  }
+
+  const handleWechatLogin = async () => {
+    if (!agreed) {
+      Toast.show('请先阅读并同意协议')
+      return
+    }
+
+    try {
+      const loginRes = await Taro.login()
+      if (loginRes.code) {
+        // Send code to backend
+        const res = await post('/user/wx-login', { code: loginRes.code })
+        if (res.token) {
+          login(res.userInfo)
+          Toast.show({ content: '微信登录成功', icon: 'success' })
+          setTimeout(() => {
+            Taro.navigateBack()
+          }, 1000)
+        }
+      } else {
+        Toast.show('微信登录失败')
+      }
+    } catch (e) {
+      console.error(e)
+      Toast.show('微信登录异常')
+    }
   }
 
   return (
     <View className="login-page-v2">
       {/* Background */}
       <Image 
-        src="https://img12.360buyimg.com/ling/jfs/t1/179505/16/40552/68310/67a57a8eF9682705a/3943365851410915.jpg" 
+        src="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80" 
         className="bg-img" 
         mode="aspectFill" 
       />
@@ -93,11 +151,11 @@ const LoginPage = () => {
         <View className="form-card">
           <View className="method-tabs">
             <View 
-              className={`tab ${loginMethod === 'code' ? 'active' : ''}`}
-              onClick={() => setLoginMethod('code')}
-            >
-              验证码登录
-            </View>
+                className={`tab ${loginMethod === 'code' ? 'active' : ''}`}
+                onClick={() => setLoginMethod('code')}
+              >
+                验证码登录/注册
+              </View>
             <View 
               className={`tab ${loginMethod === 'password' ? 'active' : ''}`}
               onClick={() => setLoginMethod('password')}
@@ -152,7 +210,26 @@ const LoginPage = () => {
             </View>
           )}
 
-          <Button className="submit-btn" onClick={handleLogin}>登录 / 注册</Button>
+          <Button className="submit-btn" onClick={handleLogin}>
+            {loginMethod === 'code' ? '登录 / 注册' : '登录'}
+          </Button>
+
+          {loginMethod === 'password' && (
+            <View className="switch-method" onClick={() => setLoginMethod('code')}>
+              <Text>没有账号？去注册</Text>
+            </View>
+          )}
+          
+          {isWeapp && (
+            <Button 
+              className="wx-login-btn" 
+              type="success" 
+              onClick={handleWechatLogin}
+              style={{ marginTop: '10px', width: '100%' }}
+            >
+              微信一键登录
+            </Button>
+          )}
           
           <View className="guest-link">
             <Text onClick={() => Taro.switchTab({ url: '/pages/home/index' })}>游客浏览</Text>

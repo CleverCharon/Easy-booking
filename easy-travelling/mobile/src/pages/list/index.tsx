@@ -38,8 +38,8 @@ const ListPage = () => {
           image: h.main_image || 'https://via.placeholder.com/300',
           score: Number(h.score),
           price: Number(h.min_price),
-          tags: h.brand ? [h.brand] : [],
-          location: '距离市中心',
+          tags: h.tags || [],
+          location: h.address || '距离市中心',
           star: Number(h.star_level) || 3
         }))
         setList(hotelList)

@@ -4,7 +4,7 @@ import Taro, { usePageScroll } from '@tarojs/taro'
 import { Button } from '@nutui/nutui-react-taro'
 import { 
   Order, Star, Service, Setting, Message, Location, 
-  User as UserIcon, Right, Check, Clock
+  User as UserIcon, ArrowRight, Check, Clock
 } from '@nutui/icons-react-taro'
 import { useUserStore } from '../../store/user'
 import './index.scss'
@@ -98,15 +98,15 @@ const MyPage = () => {
               <View className="logged-in">
                 <View className="top-row">
                   <View className="avatar-wrap">
-                    <Text className="char">{userInfo?.nickname?.[0] || 'U'}</Text>
+                    <Text className="char">{userInfo?.username?.[0] || 'U'}</Text>
                   </View>
                   <View className="info">
-                    <Text className="name">{userInfo?.nickname}</Text>
+                    <Text className="name">{userInfo?.username || '用户'}</Text>
                     <View className="level-tag">
                       <Text className="tag-txt">银卡会员</Text>
                     </View>
                   </View>
-                  <Right color="#2C439B" size={14} />
+                  <ArrowRight color="#2C439B" size={14} />
                 </View>
                 <View className="stats-row">
                   <View className="stat-item">
@@ -172,7 +172,7 @@ const MyPage = () => {
             <Text className="tit">我的卡券包</Text>
             <View className="more">
               <Text>查看全部</Text>
-              <Right size={10} />
+              <ArrowRight size={10} />
             </View>
           </View>
           <View className="v-grid">
@@ -212,7 +212,7 @@ const MyPage = () => {
                 {s.icon}
                 <Text className="txt">{s.name}</Text>
               </View>
-              <Right size={12} color="#ccc" />
+              <ArrowRight size={12} color="#ccc" />
             </View>
           ))}
           {isLogin && (
@@ -221,7 +221,7 @@ const MyPage = () => {
                 <Setting color="#33C7F7" />
                 <Text className="txt">退出登录</Text>
               </View>
-              <Right size={12} color="#ccc" />
+              <ArrowRight size={12} color="#ccc" />
             </View>
           )}
         </View>

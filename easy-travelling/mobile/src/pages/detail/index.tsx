@@ -4,24 +4,21 @@ import { View, Text, Image } from '@tarojs/components';
 import { Button, Calendar, Rate, Tag, Toast } from '@nutui/nutui-react-taro';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, Navigation } from 'swiper/modules';
-import { 
-  HeartOutlined, 
-  HeartFilled, 
-  ShareAltOutlined, 
-  StarFilled, 
-  EnvironmentOutlined, 
-  CalendarOutlined, 
-  UserOutlined, 
-  PlusOutlined, 
-  MinusOutlined, 
+import {
+  HeartOutlined,
+  HeartFilled,
+  ShareAltOutlined,
+  StarFilled,
+  EnvironmentOutlined,
+  UserOutlined,
   CheckCircleFilled,
   ArrowLeftOutlined,
   CarOutlined,
   BellOutlined,
-  CoffeeOutlined,
-  CloseOutlined
+  CoffeeOutlined
 } from '@ant-design/icons';
-import { get } from '../../utils/request';
+import { useUserStore } from '../../store/user';
+import { post, get } from '../../utils/request';
 import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
@@ -29,6 +26,7 @@ import 'swiper/css/navigation';
 const App: React.FC = () => {
   const router = useRouter();
   const { id } = router.params;
+  const { userInfo } = useUserStore();
   const [hotel, setHotel] = useState<any>(null);
   
   const [isScrolled, setIsScrolled] = useState(false);
@@ -47,13 +45,64 @@ const App: React.FC = () => {
        try {
          const res = await get(`/hotels/${id}`);
          setHotel(res);
+         
+         // Add to browsing history if logged in
+         if (userInfo?.id) {
+            await post('/history/add', { user_id: userInfo.id, hotel_id: id });
+            
+            // Check if favorited (need backend support, mock for now)
+            const favRes = await get(`/favorites/list?user_id=${userInfo.id}`);
+            // Check if current hotel is in the favorites list
+            // Note: API returns array of hotel objects, check if any hotel.id matches current id
+            const isFav = favRes.some((h: any) => String(h.id) === String(id));
+            setIsFavorite(isFav);
+         }
        } catch(e) {
          console.error(e);
          Toast.show({ content: '获取详情失败', icon: 'fail' });
        }
     }
     fetchDetail();
-  }, [id]);
+  }, [id, userInfo]);
+
+  const toggleFavorite = async () => {
+    if (!userInfo?.id) {
+      Toast.show('请先登录');
+      setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 1000);
+      return;
+    }
+
+    try {
+      if (isFavorite) {
+        await post('/favorites/remove', { user_id: userInfo.id, hotel_id: id });
+        setIsFavorite(false);
+        Toast.show('已取消收藏');
+      } else {
+        await post('/favorites/add', { user_id: userInfo.id, hotel_id: id });
+        setIsFavorite(true);
+        Toast.show('收藏成功');
+      }
+    } catch (e) {
+      Toast.show('操作失败');
+    }
+  };
+
+  const handleBook = () => {
+    if (!userInfo?.id) {
+      Toast.show('请先登录');
+      setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 1000);
+      return;
+    }
+
+    if (selectedRoom === null) {
+      Toast.show({ content: '请选择房型', icon: 'fail' });
+      // document.querySelector('.pb-28')?.scrollIntoView({ behavior: 'smooth' }); // Taro H5 fix later
+    } else {
+       Taro.navigateTo({
+          url: `/pages/order/create/index?hotelId=${id}&roomId=${selectedRoom}`
+       })
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -140,7 +189,7 @@ const App: React.FC = () => {
           </View>
           <View 
             className="flex items-center justify-center w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm active:scale-95 transition-transform"
-            onClick={() => setIsFavorite(!isFavorite)}
+            onClick={toggleFavorite}
           >
             {isFavorite ? (
               <HeartFilled className="text-[#DFA0C8]" />
@@ -359,6 +408,11 @@ const App: React.FC = () => {
               boxShadow: '0 4px 10px rgba(44, 67, 155, 0.2)'
             }}
             onClick={() => {
+              if (!userInfo) {
+                Toast.show('请先登录');
+                setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 500);
+                return;
+              }
               if (selectedRoom === null) {
                 Toast.show({ content: '请选择房型', icon: 'fail' });
                 document.querySelector('.pb-28')?.scrollIntoView({ behavior: 'smooth' });

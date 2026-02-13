@@ -18,6 +18,7 @@ import dayjs from 'dayjs'
 import { useSearchStore } from '../../store/search'
 import { get } from '../../utils/request'
 import { getLocation } from '../../utils/location'
+import { allCities } from '../../utils/city-data'
 import './index.scss'
 
 const HomePage = () => {
@@ -54,10 +55,9 @@ const HomePage = () => {
         
         const cityRes = await get('/cities')
         setFullCities(cityRes)
-        // Ensure options format is correct for NutUI Picker
-        // It expects an array of objects, e.g. [{ text: 'Label', value: 'Val' }]
-        const options = cityRes.map((c: any) => ({ text: c.name, value: c.name }))
-        setCityList(options)
+        
+        // Use static nationwide city list for Picker
+        setCityList(allCities)
       } catch (e) {
         console.error('Fetch home data failed', e)
       }
@@ -348,11 +348,11 @@ const HomePage = () => {
         <Text className="section-title">住宿灵感</Text>
         <View className="inspiration-grid">
            <View className="insp-card">
-              <Image src="https://img12.360buyimg.com/ling/jfs/t1/179505/16/40552/68310/67a57a8eF9682705a/3943365851410915.jpg" className="insp-img" mode="aspectFill" />
+              <Image src="https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?auto=format&fit=crop&w=800&q=80" className="insp-img" mode="aspectFill" />
               <Text className="insp-text">冬日暖屋</Text>
            </View>
            <View className="insp-card">
-              <Image src="https://img10.360buyimg.com/ling/jfs/t1/198797/16/32777/94747/67a57c5aF73351989/65d95393132e4d0d.jpg" className="insp-img" mode="aspectFill" />
+              <Image src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80" className="insp-img" mode="aspectFill" />
               <Text className="insp-text">海边度假</Text>
            </View>
         </View>
@@ -384,9 +384,11 @@ const HomePage = () => {
       <Picker
         visible={isCityVisible}
         options={[cityList]}
-        onConfirm={(list, values) => confirmCity(list, values)}
+        onConfirm={(options, values) => confirmCity(options, values)}
         onClose={() => setIsCityVisible(false)}
         title="选择城市"
+        threeDimensional={false}
+        style={{ height: '300px' }} 
       />
 
       {/* Guest Selection Popup */}
