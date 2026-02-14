@@ -3,10 +3,7 @@ import { getToken } from '../utils/auth'
 /**
  * 请求基地址：开发时连接本地 Node 服务
  */
-//const BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
-
-// ✅ 修改后：开发环境用相对路径走代理，生产环境用完整URL
-const BASE_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE || 'http://localhost:3000')
+const BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
 
 export interface ApiRes {
   success: boolean
@@ -70,8 +67,7 @@ export async function uploadFile(file: File): Promise<{ success: boolean; url?: 
   const token = getToken()
   const formData = new FormData()
   formData.append('file', file)
-   // 👇 改成相对路径，去掉 BASE_URL
-  const res = await fetch(`/api/upload`, {
+  const res = await fetch(`${BASE_URL}/api/upload`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,

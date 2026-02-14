@@ -43,7 +43,7 @@ export interface HotelCreateBody {
   tags?: string
   image_url?: string
   description?: string
-  roomTypes: RoomTypeInput[]
+  roomTypes: RoomTypeItem[]
 }
 
 export function getMyHotels() {

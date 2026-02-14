@@ -64,9 +64,17 @@ app.post('/api/auth/register', (req, res) => {
   }
 
   const checkSql = 'SELECT id FROM sys_users WHERE username = ?';
-  db.query(checkSql, [username.trim()], (err, rows) => {
+  const checkParams = [username.trim()];
+  
+  // ✅【修改】添加详细错误日志
+  db.query(checkSql, checkParams, (err, rows) => {
     if (err) {
-      console.error('注册-查询用户失败:', err);
+      console.error('❌ 注册-查询用户失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', checkSql);
+      console.error('   参数:', checkParams);
+      console.error('   完整错误:', err);
       return res.status(500).json({ success: false, message: '服务器错误' });
     }
     if (rows && rows.length > 0) {
@@ -75,14 +83,22 @@ app.post('/api/auth/register', (req, res) => {
 
     const hashedPassword = bcrypt.hashSync(password, 10);
     const insertSql = 'INSERT INTO sys_users (username, password, role, created_at) VALUES (?, ?, ?, NOW())';
-    db.query(insertSql, [username.trim(), hashedPassword, role], (err, result) => {
+    const insertParams = [username.trim(), hashedPassword, role];
+    
+    db.query(insertSql, insertParams, (err, result) => {
       if (err) {
-        console.error('注册-插入用户失败:', err);
+        console.error('❌ 注册-插入用户失败:');
+        console.error('   错误代码:', err.code);
+        console.error('   错误信息:', err.message);
+        console.error('   SQL语句:', insertSql);
+        console.error('   参数:', insertParams);
+        console.error('   完整错误:', err);
         return res.status(500).json({ success: false, message: '服务器错误，注册失败' });
       }
       res.json({ success: true, message: '注册成功，请登录', userId: result.insertId });
     });
   });
+  
 });
 
 // ==========================================
@@ -96,9 +112,16 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   const sql = 'SELECT id, username, password, role, avatar, created_at FROM sys_users WHERE username = ?';
-  db.query(sql, [username.trim()], (err, rows) => {
+  const params = [username.trim()];
+  
+  db.query(sql, params, (err, rows) => {
     if (err) {
-      console.error('登录-查询失败:', err);
+      console.error('❌ 登录-查询失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
       return res.status(500).json({ success: false, message: '服务器错误' });
     }
     if (!rows || rows.length === 0) {
@@ -139,11 +162,12 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ success: false, message: '请先登录' });
   }
   const token = authHeader.slice(7);
-  try {
+   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = { userId: decoded.userId, username: decoded.username, role: decoded.role };
     next();
   } catch (err) {
+    console.error('❌ JWT验证失败:', err.message);
     return res.status(401).json({ success: false, message: '登录已过期，请重新登录' });
   }
 }
@@ -281,10 +305,9 @@ app.get('/api/hotels/my', authMiddleware, (req, res) => {
   }
   const sql = `SELECT id, merchant_id, name, city, address, phone, price, star_level, tags, image_url, description, status, create_time 
     FROM hotels WHERE merchant_id = ? ORDER BY create_time DESC`;
+   const params = [req.user.userId];
   
-  const params = [req.user.userId];
-
-  // ✅ 修改：添加详细错误日志
+  // ✅【修改】添加详细错误日志
   db.query(sql, params, (err, rows) => {
     if (err) {
       console.error('❌ 查询我的酒店失败:');
@@ -293,16 +316,14 @@ app.get('/api/hotels/my', authMiddleware, (req, res) => {
       console.error('   SQL语句:', sql);
       console.error('   参数:', params);
       console.error('   完整错误:', err);
-      
       return res.status(500).json({ 
         success: false, 
-        message: '查询酒店列表失败', 
-        error: err.message,
-        code: err.code 
+        message: '查询酒店列表失败',
+        error: err.message 
       });
     }
     res.json(rows || []);
-  })
+  });
 });
 
 // ==========================================
@@ -332,7 +353,7 @@ app.post('/api/hotels', authMiddleware, (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())`;
   const insValues = [req.user.userId, String(name).trim(), String(city).trim(), String(address).trim(), phone ? String(phone).trim() : null, priceNum, starNum, tagsStr || null, image_url ? String(image_url).trim() : null, description ? String(description).trim() : null];
 
-  // ✅ 修改1：插入酒店的错误处理
+  // ✅【修改】添加详细错误日志
   db.query(insSql, insValues, (err, result) => {
     if (err) {
       console.error('❌ 发布酒店-插入hotels失败:');
@@ -341,12 +362,10 @@ app.post('/api/hotels', authMiddleware, (req, res) => {
       console.error('   SQL语句:', insSql);
       console.error('   参数:', insValues);
       console.error('   完整错误:', err);
-      
       return res.status(500).json({ 
         success: false, 
-        message: '发布酒店失败', 
-        error: err.message,
-        code: err.code 
+        message: '发布酒店失败',
+        error: err.message 
       });
     }
     
@@ -365,7 +384,7 @@ app.post('/api/hotels', authMiddleware, (req, res) => {
       const rtImg = rt.image_url ? String(rt.image_url).trim() : null;
       const rtValues = [hotelId, String(rt.name).trim(), Number(rt.price), rtDesc, rtImg];
       
-      // ✅ 修改2：插入房型的错误处理
+      // ✅【修改】添加详细错误日志
       db.query(rtSql, rtValues, (errRt) => {
         if (errRt) {
           console.error('❌ 插入房型失败:');
@@ -402,14 +421,40 @@ app.get('/api/hotels/:id', authMiddleware, (req, res) => {
   }
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
+
   const sql = 'SELECT * FROM hotels WHERE id = ? AND merchant_id = ?';
-  db.query(sql, [id, req.user.userId], (err, rows) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
+  const params = [id, req.user.userId];
+  
+  // ✅【修改】添加详细错误日志
+  db.query(sql, params, (err, rows) => {
+    if (err) {
+      console.error('❌ 查询酒店详情失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '查询酒店详情失败',
+        error: err.message 
+      });
+    }
     if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+    
     const hotel = rows[0];
     const cancellation = hotel.cancellation != null ? hotel.cancellation : (hotel.Cancellation != null ? hotel.Cancellation : null);
-    db.query('SELECT id, name, price, description, image_url FROM room_types WHERE hotel_id = ?', [id], (errRt, roomRows) => {
-      if (errRt) return res.status(500).json({ success: false, message: '服务器错误' });
+    
+    const rtSql = 'SELECT id, name, price, description, image_url FROM room_types WHERE hotel_id = ?';
+    db.query(rtSql, [id], (errRt, roomRows) => {
+      if (errRt) {
+        console.error('❌ 查询房型失败:', errRt);
+        return res.status(500).json({ 
+          success: false, 
+          message: '查询房型失败',
+          error: errRt.message 
+        });
+      }
       res.json({ ...hotel, cancellation, roomTypes: roomRows || [] });
     });
   });
@@ -426,11 +471,11 @@ app.patch('/api/hotels/:id/status', authMiddleware, (req, res) => {
   const { status } = req.body;
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
   if (status !== 2) return res.status(400).json({ success: false, message: '仅支持退回为已拒绝' });
-  const sql = 'UPDATE hotels SET status = ? WHERE id = ? AND merchant_id = ?';
-  const params = [status, id, req.user.userId];
-
+  const sql = 'UPDATE hotels SET status = ?, cancellation = ? WHERE id = ? AND merchant_id = ?';
+  const params = [status, '商家自行退回申请', id, req.user.userId];
+  
+  // ✅【修改】添加详细错误日志
   db.query(sql, params, (err, result) => {
-    // ✅ 关键修改：显示真实数据库错误
     if (err) {
       console.error('❌ 酒店退回申请失败:');
       console.error('   错误代码:', err.code);
@@ -438,45 +483,18 @@ app.patch('/api/hotels/:id/status', authMiddleware, (req, res) => {
       console.error('   SQL语句:', sql);
       console.error('   参数:', params);
       console.error('   完整错误:', err);
-      
-      // 根据错误类型返回更具体的提示
-      if (err.code === 'ER_NO_SUCH_TABLE') {
-        return res.status(500).json({ 
-          success: false, 
-          message: '数据库表不存在，请检查hotels表', 
-          error: err.message 
-        });
-      }
-      if (err.code === 'ER_BAD_FIELD_ERROR') {
-        return res.status(500).json({ 
-          success: false, 
-          message: '数据库字段不存在，请检查cancellation字段', 
-          error: err.message 
-        });
-      }
-      if (err.code === 'ER_PARSE_ERROR') {
-        return res.status(500).json({ 
-          success: false, 
-          message: 'SQL语法错误', 
-          error: err.message 
-        });
-      }
-      
       return res.status(500).json({ 
         success: false, 
-        message: '数据库操作失败', 
-        error: err.message,
-        code: err.code 
+        message: '退回申请失败',
+        error: err.message 
       });
     }
-    
     if (result.affectedRows === 0) {
       return res.status(404).json({ 
         success: false, 
         message: '酒店不存在或无权限操作' 
       });
     }
-    
     res.json({ success: true, message: '已退回申请' });
   });
 });
@@ -490,21 +508,43 @@ app.delete('/api/hotels/:id', authMiddleware, (req, res) => {
   }
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
-  db.query('SELECT id, image_url FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId], (err, rows) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
+  
+  const selectHotelSql = 'SELECT id, image_url FROM hotels WHERE id = ? AND merchant_id = ?';
+  db.query(selectHotelSql, [id, req.user.userId], (err, rows) => {
+    if (err) {
+      console.error('❌ 删除-查询酒店失败:', err);
+      return res.status(500).json({ success: false, message: '服务器错误' });
+    }
     if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+    
     const hotel = rows[0];
-    db.query('SELECT id, image_url FROM room_types WHERE hotel_id = ?', [id], (errRt, roomRows) => {
-      if (errRt) return res.status(500).json({ success: false, message: '服务器错误' });
+    const selectRoomSql = 'SELECT id, image_url FROM room_types WHERE hotel_id = ?';
+    db.query(selectRoomSql, [id], (errRt, roomRows) => {
+      if (errRt) {
+        console.error('❌ 删除-查询房型失败:', errRt);
+        return res.status(500).json({ success: false, message: '服务器错误' });
+      }
+      
       const urls = collectImageUrls(hotel, roomRows || []);
       if (urls.length) console.log('[OSS] 删除酒店: 共', urls.length, '个图片 URL');
+      
       const client = getOSSClient();
       const afterOSS = client ? deleteOSSFiles(client, urls) : Promise.resolve();
+      
       afterOSS.finally(() => {
-        db.query('DELETE FROM room_types WHERE hotel_id = ?', [id], (err1) => {
-          if (err1) return res.status(500).json({ success: false, message: '服务器错误' });
-          db.query('DELETE FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId], (err2, result) => {
-            if (err2) return res.status(500).json({ success: false, message: '服务器错误' });
+        const deleteRoomSql = 'DELETE FROM room_types WHERE hotel_id = ?';
+        db.query(deleteRoomSql, [id], (err1) => {
+          if (err1) {
+            console.error('❌ 删除-删除房型失败:', err1);
+            return res.status(500).json({ success: false, message: '服务器错误' });
+          }
+          
+          const deleteHotelSql = 'DELETE FROM hotels WHERE id = ? AND merchant_id = ?';
+          db.query(deleteHotelSql, [id, req.user.userId], (err2, result) => {
+            if (err2) {
+              console.error('❌ 删除-删除酒店失败:', err2);
+              return res.status(500).json({ success: false, message: '服务器错误' });
+            }
             if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
             res.json({ success: true, message: '已删除' });
           });
@@ -512,6 +552,7 @@ app.delete('/api/hotels/:id', authMiddleware, (req, res) => {
       });
     });
   });
+
 });
 
 // ==========================================
@@ -530,13 +571,24 @@ app.put('/api/hotels/:id', authMiddleware, (req, res) => {
   if (!roomTypes || !Array.isArray(roomTypes) || roomTypes.length === 0) {
     return res.status(400).json({ success: false, message: '请至少添加一个房型' });
   }
-  // 先查出当前酒店与房型的图片 URL，用于更新后删除不再使用的 OSS 文件
-  db.query('SELECT id, image_url FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId], (err, rows) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
+  
+   // 先查出当前酒店与房型的图片 URL，用于更新后删除不再使用的 OSS 文件
+  const selectHotelSql = 'SELECT id, image_url FROM hotels WHERE id = ? AND merchant_id = ?';
+  db.query(selectHotelSql, [id, req.user.userId], (err, rows) => {
+    if (err) {
+      console.error('❌ 更新-查询酒店失败:', err);
+      return res.status(500).json({ success: false, message: '服务器错误' });
+    }
     if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+    
     const oldHotel = rows[0];
-    db.query('SELECT id, image_url FROM room_types WHERE hotel_id = ?', [id], (errRt, roomRows) => {
-      if (errRt) return res.status(500).json({ success: false, message: '服务器错误' });
+    const selectRoomSql = 'SELECT id, image_url FROM room_types WHERE hotel_id = ?';
+    db.query(selectRoomSql, [id], (errRt, roomRows) => {
+      if (errRt) {
+        console.error('❌ 更新-查询房型失败:', errRt);
+        return res.status(500).json({ success: false, message: '服务器错误' });
+      }
+      
       const oldUrls = collectImageUrls(oldHotel, roomRows || []);
       const newUrls = [];
       if (image_url && String(image_url).trim()) newUrls.push(String(image_url).trim());
@@ -552,23 +604,51 @@ app.put('/api/hotels/:id', authMiddleware, (req, res) => {
       const tagsStr = typeof tags === 'string' ? tags.trim() : (Array.isArray(tags) ? tags.join(',') : null);
       const upSql = `UPDATE hotels SET name=?, city=?, address=?, phone=?, price=?, star_level=?, tags=?, image_url=?, description=?, status=0, create_time=create_time WHERE id=? AND merchant_id=?`;
       const upValues = [String(name).trim(), String(city).trim(), String(address).trim(), phone ? String(phone).trim() : null, priceNum, starNum, tagsStr || null, image_url ? String(image_url).trim() : null, description ? String(description).trim() : null, id, req.user.userId];
+      
       db.query(upSql, upValues, (errUp) => {
-        if (errUp) return res.status(500).json({ success: false, message: '更新失败' });
-        db.query('DELETE FROM room_types WHERE hotel_id = ?', [id], () => {
+        if (errUp) {
+          console.error('❌ 更新-更新酒店失败:', errUp);
+          return res.status(500).json({ success: false, message: '更新失败' });
+        }
+        
+        const deleteRoomSql = 'DELETE FROM room_types WHERE hotel_id = ?';
+        db.query(deleteRoomSql, [id], () => {
           const rtSql = 'INSERT INTO room_types (hotel_id, name, price, description, image_url) VALUES (?, ?, ?, ?, ?)';
           let done = 0;
+          let hasError = false;
           const total = roomTypes.length;
+          
           const finish = () => {
             const client = getOSSClient();
-            if (client && toDelete.length) deleteOSSFiles(client, toDelete).finally(() => res.json({ success: true, message: '更新成功' }));
-            else res.json({ success: true, message: '更新成功' });
+            if (client && toDelete.length) {
+              deleteOSSFiles(client, toDelete).finally(() => {
+                if (hasError) {
+                  res.status(500).json({ success: false, message: '部分房型插入失败' });
+                } else {
+                  res.json({ success: true, message: '更新成功' });
+                }
+              });
+            } else {
+              if (hasError) {
+                res.status(500).json({ success: false, message: '部分房型插入失败' });
+              } else {
+                res.json({ success: true, message: '更新成功' });
+              }
+            }
           };
+          
           if (total === 0) return finish();
+          
           for (const rt of roomTypes) {
             const rtDesc = rt.description ? String(rt.description).trim() : null;
             const rtImg = rt.image_url ? String(rt.image_url).trim() : null;
-            db.query(rtSql, [id, String(rt.name).trim(), Number(rt.price), rtDesc, rtImg], (errRt) => {
-              if (errRt) console.error('插入房型失败:', errRt);
+            const rtValues = [id, String(rt.name).trim(), Number(rt.price), rtDesc, rtImg];
+            
+            db.query(rtSql, rtValues, (errRt) => {
+              if (errRt) {
+                console.error('❌ 更新-插入房型失败:', errRt);
+                hasError = true;
+              }
               done += 1;
               if (done === total) finish();
             });
@@ -577,6 +657,7 @@ app.put('/api/hotels/:id', authMiddleware, (req, res) => {
       });
     });
   });
+
 });
 
 // ==========================================
@@ -585,41 +666,57 @@ app.put('/api/hotels/:id', authMiddleware, (req, res) => {
 
 // 已发布列表：status IN (1 已发布, 3 已下线)，关联商户名称，按创建时间倒序
 app.get('/api/admin/hotels/published', authMiddleware, adminMiddleware, (req, res) => {
-  // ✅ 修改：去掉 h.cancellation 字段
-  const sql = `SELECT h.id, h.merchant_id, h.name, h.city, h.address, h.phone, h.price, h.star_level, h.tags, h.image_url, h.description, h.status, h.create_time, h.update_time,
+  const sql = `SELECT h.id, h.merchant_id, h.name, h.city, h.address, h.phone, h.price, h.star_level, h.tags, h.image_url, h.description, h.status, h.cancellation, h.create_time, h.update_time,
     u.username AS merchant_name
     FROM hotels h
     LEFT JOIN sys_users u ON u.id = h.merchant_id
     WHERE h.status IN (1, 3) ORDER BY h.create_time DESC`;
+  
+  // ✅【修改】添加详细错误日志
   db.query(sql, [], (err, rows) => {
     if (err) {
-      console.error('管理员-已发布列表失败:', err);
-      return res.status(500).json({ success: false, message: '服务器错误' });
+      console.error('❌ 管理员-已发布列表失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   完整错误:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '查询已发布列表失败',
+        error: err.message 
+      });
     }
     res.json(rows || []);
   });
+
 });
 
 // 待审核列表：status=0，关联商户名称
 app.get('/api/admin/hotels/pending', authMiddleware, adminMiddleware, (req, res) => {
-  // ✅ 这个接口本来就没有 cancellation，不用改，但可以加错误日志
   const sql = `SELECT h.id, h.merchant_id, h.name, h.city, h.address, h.phone, h.price, h.star_level, h.tags, h.image_url, h.description, h.status, h.create_time,
     u.username AS merchant_name
     FROM hotels h
     LEFT JOIN sys_users u ON u.id = h.merchant_id
     WHERE h.status = 0
     ORDER BY h.create_time DESC`;
+  
+  // ✅【修改】添加详细错误日志
   db.query(sql, [], (err, rows) => {
     if (err) {
-      console.error('❌ 管理员-待审核列表失败:', err);
+      console.error('❌ 管理员-待审核列表失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   完整错误:', err);
       return res.status(500).json({ 
         success: false, 
-        message: '查询待审核列表失败', 
+        message: '查询待审核列表失败',
         error: err.message 
       });
     }
     res.json(rows || []);
   });
+
 });
 
 // 管理员查看酒店详情（任意酒店，用于「查看信息」）
@@ -627,15 +724,40 @@ app.get('/api/admin/hotels/:id', authMiddleware, adminMiddleware, (req, res) => 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
   const sql = 'SELECT * FROM hotels WHERE id = ?';
-  db.query(sql, [id], (err, rows) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
+  const params = [id];
+  
+  // ✅【修改】添加详细错误日志
+  db.query(sql, params, (err, rows) => {
+    if (err) {
+      console.error('❌ 管理员-查询酒店详情失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '查询酒店详情失败',
+        error: err.message 
+      });
+    }
     if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+    
     const hotel = rows[0];
-    db.query('SELECT id, name, price, description, image_url FROM room_types WHERE hotel_id = ?', [id], (errRt, roomRows) => {
-      if (errRt) return res.status(500).json({ success: false, message: '服务器错误' });
+    const rtSql = 'SELECT id, name, price, description, image_url FROM room_types WHERE hotel_id = ?';
+    db.query(rtSql, [id], (errRt, roomRows) => {
+      if (errRt) {
+        console.error('❌ 管理员-查询房型失败:', errRt);
+        return res.status(500).json({ 
+          success: false, 
+          message: '查询房型失败',
+          error: errRt.message 
+        });
+      }
       res.json({ ...hotel, roomTypes: roomRows || [] });
     });
   });
+
 });
 
 // 通过审核：status=1
@@ -643,9 +765,29 @@ app.post('/api/admin/hotels/:id/approve', authMiddleware, adminMiddleware, (req,
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
   const sql = 'UPDATE hotels SET status = 1 WHERE id = ? AND status = 0';
-  db.query(sql, [id], (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
-    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '酒店不存在或非待审核状态' });
+   const params = [id];
+  
+  // ✅【修改】添加详细错误日志
+  db.query(sql, params, (err, result) => {
+    if (err) {
+      console.error('❌ 管理员-通过审核失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '通过审核失败',
+        error: err.message 
+      });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '酒店不存在或非待审核状态' 
+      });
+    }
     res.json({ success: true, message: '已通过' });
   });
 });
@@ -655,15 +797,21 @@ app.post('/api/admin/hotels/:id/reject', authMiddleware, adminMiddleware, (req, 
   const id = parseInt(req.params.id, 10);
   const { reason } = req.body || {};
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
-  // ✅ 暂时只更新 status，不更新 cancellation
-  const sql = 'UPDATE hotels SET status = 2 WHERE id = ? AND status = 0';
-
-  db.query(sql, [id], (err, result) => {
+  const sql = 'UPDATE hotels SET status = 2, cancellation = ? WHERE id = ? AND status = 0';
+  const params = [reason ? String(reason).trim() : null, id];
+  
+  // ✅【修改】添加详细错误日志
+  db.query(sql, params, (err, result) => {
     if (err) {
-      console.error('❌ 拒绝审核失败:', err);
+      console.error('❌ 管理员-拒绝审核失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
       return res.status(500).json({ 
         success: false, 
-        message: '拒绝失败', 
+        message: '拒绝审核失败',
         error: err.message 
       });
     }
@@ -684,34 +832,73 @@ app.post('/api/admin/hotels/:id/offline', authMiddleware, adminMiddleware, (req,
   const { reason } = req.body || {};
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
   const upSql = 'UPDATE hotels SET status = 3, cancellation = ?, update_time = CURRENT_TIMESTAMP WHERE id = ? AND status = 1';
-  db.query(upSql, [reason ? String(reason).trim() : null, id], (err, result) => {
+  const params = [reason ? String(reason).trim() : null, id];
+  
+  // ✅【修改】添加详细错误日志
+  db.query(upSql, params, (err, result) => {
     if (err) {
-      console.error('下线-更新失败:', err.message);
-      return res.status(500).json({ success: false, message: err.code === 'ER_BAD_FIELD_ERROR' ? '数据库缺少 update_time 字段，请执行 ALTER TABLE hotels ADD COLUMN update_time DATETIME DEFAULT NULL' : '服务器错误' });
+      console.error('❌ 管理员-下线酒店失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', upSql);
+      console.error('   参数:', params);
+      console.error('   完整错误:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '下线酒店失败',
+        error: err.message 
+      });
     }
-    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '酒店不存在或非已发布状态' });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '酒店不存在或非已发布状态' 
+      });
+    }
     res.json({ success: true, message: '已下线' });
   });
+
 });
 
 // 管理员物理删除酒店（已下线或任意状态均可删）
 app.delete('/api/admin/hotels/:id', authMiddleware, adminMiddleware, (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) return res.status(400).json({ success: false, message: '无效的酒店ID' });
-  db.query('SELECT id, image_url FROM hotels WHERE id = ?', [id], (err, rows) => {
-    if (err) return res.status(500).json({ success: false, message: '服务器错误' });
+  
+  const selectHotelSql = 'SELECT id, image_url FROM hotels WHERE id = ?';
+  db.query(selectHotelSql, [id], (err, rows) => {
+    if (err) {
+      console.error('❌ 管理员删除-查询酒店失败:', err);
+      return res.status(500).json({ success: false, message: '服务器错误' });
+    }
     if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+    
     const hotel = rows[0];
-    db.query('SELECT id, image_url FROM room_types WHERE hotel_id = ?', [id], (errRt, roomRows) => {
-      if (errRt) return res.status(500).json({ success: false, message: '服务器错误' });
+    const selectRoomSql = 'SELECT id, image_url FROM room_types WHERE hotel_id = ?';
+    db.query(selectRoomSql, [id], (errRt, roomRows) => {
+      if (errRt) {
+        console.error('❌ 管理员删除-查询房型失败:', errRt);
+        return res.status(500).json({ success: false, message: '服务器错误' });
+      }
+      
       const urls = collectImageUrls(hotel, roomRows || []);
       const client = getOSSClient();
       const afterOSS = client ? deleteOSSFiles(client, urls) : Promise.resolve();
+      
       afterOSS.finally(() => {
-        db.query('DELETE FROM room_types WHERE hotel_id = ?', [id], (err1) => {
-          if (err1) return res.status(500).json({ success: false, message: '服务器错误' });
-          db.query('DELETE FROM hotels WHERE id = ?', [id], (err2, result) => {
-            if (err2) return res.status(500).json({ success: false, message: '服务器错误' });
+        const deleteRoomSql = 'DELETE FROM room_types WHERE hotel_id = ?';
+        db.query(deleteRoomSql, [id], (err1) => {
+          if (err1) {
+            console.error('❌ 管理员删除-删除房型失败:', err1);
+            return res.status(500).json({ success: false, message: '服务器错误' });
+          }
+          
+          const deleteHotelSql = 'DELETE FROM hotels WHERE id = ?';
+          db.query(deleteHotelSql, [id], (err2, result) => {
+            if (err2) {
+              console.error('❌ 管理员删除-删除酒店失败:', err2);
+              return res.status(500).json({ success: false, message: '服务器错误' });
+            }
             if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
             res.json({ success: true, message: '已删除' });
           });
@@ -719,6 +906,7 @@ app.delete('/api/admin/hotels/:id', authMiddleware, adminMiddleware, (req, res) 
       });
     });
   });
+
 });
 
 // ==========================================
@@ -738,18 +926,28 @@ app.post('/api/bookings/create', (req, res) => {
   // 3. 执行 SQL
   const values = [user_name, user_phone, user_id_card, hotel_id, hotel_name, check_in_date, check_out_date, total_price];
   
+  // ✅【修改】添加详细错误日志
   db.query(sql, values, (err, result) => {
     if (err) {
-      console.error('插入订单失败:', err);
-      return res.status(500).send({ message: '服务器错误，预订失败' });
+      console.error('❌ 插入订单失败:');
+      console.error('   错误代码:', err.code);
+      console.error('   错误信息:', err.message);
+      console.error('   SQL语句:', sql);
+      console.error('   参数:', values);
+      console.error('   完整错误:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '预订失败',
+        error: err.message 
+      });
     }
-    // 成功了！告诉前端好消息
-    res.send({ 
+    res.json({ 
       success: true, 
       message: '预订成功！', 
-      orderId: result.insertId // 把生成的订单号返给前端
+      orderId: result.insertId
     });
   });
+
 });
 
 // ==========================================
@@ -759,10 +957,19 @@ app.get('/api/bookings/my-list', (req, res) => {
   // 简单起见，这里先查出所有订单 (实际项目中会根据用户ID查)
   const sql = 'SELECT * FROM bookings ORDER BY create_time DESC';
 
+  // ✅【修改】添加详细错误日志
   db.query(sql, (err, results) => {
-    if (err) return res.status(500).send('查询失败');
-    res.send(results);
+    if (err) {
+      console.error('❌ 查询订单列表失败:', err);
+      return res.status(500).json({ 
+        success: false, 
+        message: '查询失败',
+        error: err.message 
+      });
+    }
+    res.json(results || []);
   });
+
 });
 
 // 统一错误处理（如 MulterError: File too large）返回 JSON，避免返回 HTML
