@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Form, Input, InputNumber, Button, Card, Space, Upload, Cascader, Select } from 'antd'
+import { Form, Input, InputNumber, Button, Card, Space, Upload, Cascader, Select, Checkbox } from 'antd'
 import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined, PictureOutlined } from '@ant-design/icons'
 import PageLayout from '../../components/PageLayout'
 import { createHotel, updateHotel, getHotelDetail } from '../../api/hotels'
@@ -65,6 +65,20 @@ const COVER_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 const ROOM_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 
 const defaultRoomType = { name: '', price: undefined as unknown as number, description: '', image_url: '' }
+const TAG_OPTIONS = [
+  '免费停车',
+  '含早餐',
+  '免费 Wi-Fi',
+  '亲子友好',
+  '近地铁',
+  '商务出行',
+  '可开发票',
+  '健身房',
+  '游泳池',
+  '海景房',
+  '山景房',
+  '会议室',
+]
 
 export default function HotelPublishPage() {
   const navigate = useNavigate()
@@ -121,7 +135,7 @@ export default function HotelPublishPage() {
         setCoverPreview(null)
         setPendingRoomFiles({})
         const { code, number } = parsePhone(detail.phone ?? undefined)
-        const tagList = detail.tags ? detail.tags.split(',').map((s) => s.trim()).filter(Boolean) : []
+        const tagList = detail.tags ? detail.tags.split(/[\uFF0C,]/).map((s) => s.trim()).filter(Boolean) : []
         form.setFieldsValue({
           name: detail.name,
           city: detail.city,
@@ -130,7 +144,7 @@ export default function HotelPublishPage() {
           phoneNumber: number,
           price: detail.price ?? undefined,
           star_level: detail.star_level ?? undefined,
-          tagList: tagList.length ? tagList : [''],
+          tagList,
           image_url: detail.image_url ?? undefined,
           description: detail.description ?? undefined,
           roomTypes: (detail.roomTypes && detail.roomTypes.length > 0)
@@ -173,7 +187,8 @@ export default function HotelPublishPage() {
         roomTypeUrls.push(all.join(','))
       }
       const phone = [values.phoneCode || '', (values.phoneNumber || '').trim()].filter(Boolean).join('') || undefined
-      const tags = (values.tagList || []).filter(Boolean).join(',') || undefined
+      const normalizedTagList: string[] = Array.isArray(values.tagList) ? values.tagList : []
+      const tags = normalizedTagList.map((t: string) => t.trim()).filter(Boolean).join('\uFF0C') || undefined
       const payload = {
         name: values.name,
         city: values.city,
@@ -233,9 +248,9 @@ export default function HotelPublishPage() {
           onFinish={onFinish}
           initialValues={{ roomTypes: [defaultRoomType], 
                            phoneCode: '+86', 
-                           tagList: [''] 
+                           tagList: [] 
                           }}
-          className="[&_.ant-form-item-label_label]:text-gray-700 [&_.ant-form-item-label_label]:font-medium"
+          className="[&_.ant-form-item]:mb-6 [&_.ant-form-item-label]:pb-1 [&_.ant-form-item-label_label]:text-gray-700 [&_.ant-form-item-label_label]:font-medium"
           disabled={loadingDetail || readOnly}
         >
           <Card title="基础信息" className="mb-6 rounded-xl shadow-sm">
@@ -296,34 +311,23 @@ export default function HotelPublishPage() {
                 </div>
               </Space.Compact>
             </Form.Item>
-            <Space className="w-full" size="large">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Form.Item name="price" label="起步价（元）" className="mb-0">
                 <InputNumber placeholder="选填" min={0} precision={2} size="large" className="rounded-lg w-full" />
               </Form.Item>
               <Form.Item name="star_level" label="星级（1-5）" className="mb-0">
                 <InputNumber placeholder="选填" min={1} max={5} precision={0} size="large" className="rounded-lg w-full" />
               </Form.Item>
-            </Space>
-            <Form.Item name="tagList" label="标签">
-              <Form.List name="tagList">
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map(({ key, name, ...rest }) => (
-                      <div key={key} className="flex items-center gap-2 mb-2">
-                        <Form.Item {...rest} name={[name]} className="mb-0 flex-1">
-                          <Input placeholder="如：免费停车" size="large" className="rounded-lg" />
-                        </Form.Item>
-                        {fields.length > 1 ? (
-                          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} className="shrink-0" />
-                        ) : null}
-                      </div>
-                    ))}
-                    <Button type="dashed" icon={<PlusOutlined />} onClick={() => add()} className="rounded-lg">
-                      添加标签
-                    </Button>
-                  </>
-                )}
-              </Form.List>
+            </div>
+            <Form.Item label="标签（可多选）" className="mb-8">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                <Form.Item name="tagList" noStyle>
+                  <Checkbox.Group
+                    options={TAG_OPTIONS}
+                    className="flex w-full flex-wrap gap-x-6 gap-y-3 [&_.ant-checkbox-wrapper]:m-0"
+                  />
+                </Form.Item>
+              </div>
             </Form.Item>
             <Form.Item name="image_url" label="封面图">
               <Form.Item noStyle shouldUpdate={(prev, curr) => prev.image_url !== curr.image_url}>
@@ -342,7 +346,7 @@ export default function HotelPublishPage() {
                     <div className="flex flex-wrap items-center gap-3">
                       {displayUrl && (
                         <div className="relative inline-block">
-                          <img src={displayUrl} alt="封面" className="h-24 w-24 object-cover rounded-lg border border-gray-200" />
+                          <img src={displayUrl} alt="封面" className="h-40 w-40 object-cover rounded-lg border border-gray-200" />
                           <Button
                             type="text"
                             danger
@@ -433,7 +437,7 @@ export default function HotelPublishPage() {
                                 <div className="flex flex-wrap items-center gap-3">
                                   {urls.map((u, i) => (
                                     <div key={u} className="relative inline-block">
-                                      <img src={u} alt="" className="h-20 w-20 object-cover rounded-lg border border-gray-200" />
+                                      <img src={u} alt="" className="h-32 w-32 object-cover rounded-lg border border-gray-200" />
                                       <Button
                                         type="text"
                                         danger
@@ -446,7 +450,7 @@ export default function HotelPublishPage() {
                                   ))}
                                   {pending.map((p, i) => (
                                     <div key={p.objectUrl} className="relative inline-block">
-                                      <img src={p.objectUrl} alt="" className="h-20 w-20 object-cover rounded-lg border border-gray-200" />
+                                      <img src={p.objectUrl} alt="" className="h-32 w-32 object-cover rounded-lg border border-gray-200" />
                                       <Button
                                         type="text"
                                         danger

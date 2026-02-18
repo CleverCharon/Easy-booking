@@ -21,6 +21,40 @@ app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // ==========================================
+// 短信验证码（占位实现：后续接入「速通互联」短信 REST API）
+// ==========================================
+const SMS_CODE_TTL_MS = 5 * 60 * 1000; // 5分钟
+const smsStore = new Map(); // phone -> { code, expireAt }
+
+function genDigitsCode(len = 6) {
+  let s = '';
+  for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+  return s;
+}
+
+// 6 位字母/数字的邀请码/身份码
+function genRoleCode(len = 6) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let out = '';
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
+// 管理员身份码：写死 10 个，仅可使用一次（通过查表 role_code 是否已存在来限制）
+const ADMIN_ROLE_CODES = new Set([
+  'A1B2C3',
+  'D4E5F6',
+  'G7H8J9',
+  'K1L2M3',
+  'N4P5Q6',
+  'R7S8T9',
+  'U1V2W3',
+  'X4Y5Z6',
+  '1A2B3C',
+  '4D5E6F',
+]);
+
+// ==========================================
 // 核心步骤：创建数据库连接池
 // ==========================================
 const db = mysql.createPool({
@@ -45,13 +79,34 @@ db.getConnection((err, connection) => {
 });
 
 // ==========================================
+// 发送短信验证码：POST /api/auth/sms/send（占位：暂不真实发送）
+// ==========================================
+app.post('/api/auth/sms/send', (req, res) => {
+  const { phone } = req.body || {};
+  const p = phone ? String(phone).trim() : '';
+  if (!p || !p.startsWith('+') || p.length < 6) {
+    return res.status(400).json({ success: false, message: '请输入正确的手机号（含区号，如 +8613800138000）' });
+  }
+  const code = genDigitsCode(6);
+  const expireAt = Date.now() + SMS_CODE_TTL_MS;
+  smsStore.set(p, { code, expireAt });
+  // TODO: 后续在这里接入「速通互联」短信 REST API 发送 code
+  console.log('[SMS] 验证码(占位，仅日志输出):', p, code, 'expireAt:', new Date(expireAt).toISOString());
+  res.json({ success: true, message: '验证码已发送（当前为占位实现，后端日志可见验证码）' });
+});
+
+// ==========================================
 // 注册接口：POST /api/auth/register
 // ==========================================
 app.post('/api/auth/register', (req, res) => {
-  const { username, password, role } = req.body;
+  const { username, password, role, phone, smsCode, roleCode } = req.body;
 
-  if (!username || !password || !role) {
-    return res.status(400).json({ success: false, message: '请填写账号、密码并选择角色' });
+  const phoneStr = phone ? String(phone).trim() : '';
+  const smsStr = smsCode ? String(smsCode).trim() : '';
+  const roleCodeStr = roleCode ? String(roleCode).trim().toUpperCase() : '';
+
+  if (!username || !password || !role || !phoneStr || !smsStr) {
+    return res.status(400).json({ success: false, message: '请填写账号、密码、手机号、验证码并选择角色' });
   }
   if (!['admin', 'merchant'].includes(role)) {
     return res.status(400).json({ success: false, message: '角色只能是 admin 或 merchant' });
@@ -61,6 +116,20 @@ app.post('/api/auth/register', (req, res) => {
   }
   if (String(password).length < 6) {
     return res.status(400).json({ success: false, message: '密码长度至少 6 位' });
+  }
+
+  // 先校验短信验证码（占位：来自 /api/auth/sms/send）
+  // 开发阶段提供通用验证码“6666”，后续接入短信服务后可删除该分支
+  if (smsStr !== '6666') {
+    const rec = smsStore.get(phoneStr);
+    if (!rec) return res.status(400).json({ success: false, message: '请先获取验证码' });
+    if (Date.now() > rec.expireAt) {
+      smsStore.delete(phoneStr);
+      return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });
+    }
+    if (rec.code !== smsStr) {
+      return res.status(400).json({ success: false, message: '验证码错误' });
+    }
   }
 
   const checkSql = 'SELECT id FROM sys_users WHERE username = ?';
@@ -82,19 +151,82 @@ app.post('/api/auth/register', (req, res) => {
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
-    const insertSql = 'INSERT INTO sys_users (username, password, role, created_at) VALUES (?, ?, ?, NOW())';
-    const insertParams = [username.trim(), hashedPassword, role];
-    
-    db.query(insertSql, insertParams, (err, result) => {
-      if (err) {
-        console.error('❌ 注册-插入用户失败:');
-        console.error('   错误代码:', err.code);
-        console.error('   错误信息:', err.message);
-        console.error('   SQL语句:', insertSql);
-        console.error('   参数:', insertParams);
-        console.error('   完整错误:', err);
-        return res.status(500).json({ success: false, message: '服务器错误，注册失败' });
+
+    // 管理员：身份码必须匹配写死集合，且只能使用一次（查表 role_code 是否已存在）
+    if (role === 'admin') {
+      if (!roleCodeStr || roleCodeStr.length !== 6) {
+        return res.status(400).json({ success: false, message: '请输入 6 位身份码' });
       }
+      if (!ADMIN_ROLE_CODES.has(roleCodeStr)) {
+        return res.status(400).json({ success: false, message: '身份码不正确，无法注册管理员' });
+      }
+      const usedSql = "SELECT id FROM sys_users WHERE role = 'admin' AND role_code = ? LIMIT 1";
+      db.query(usedSql, [roleCodeStr], (errUsed, usedRows) => {
+        if (errUsed) return res.status(500).json({ success: false, message: '服务器错误' });
+        if (usedRows && usedRows.length > 0) {
+          return res.status(400).json({ success: false, message: '该账号已被注册' });
+        }
+        const insertSql = 'INSERT INTO sys_users (username, password, role, phone, role_code, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+        const insertParams = [username.trim(), hashedPassword, role, phoneStr, roleCodeStr];
+        db.query(insertSql, insertParams, (errIns, result) => {
+          if (errIns) return res.status(500).json({ success: false, message: '服务器错误，注册失败' });
+          smsStore.delete(phoneStr);
+          res.json({ success: true, message: '注册成功，请登录', userId: result.insertId });
+        });
+      });
+      return;
+    }
+
+    // 商户：邀请码可选
+    if (role === 'merchant') {
+      // 有邀请码：查表存在则激活成功，不写入新用户 role_code；不存在则失败
+      if (roleCodeStr) {
+        if (roleCodeStr.length !== 6) {
+          return res.status(400).json({ success: false, message: '邀请码必须为 6 位字母或数字' });
+        }
+        const inviteSql = "SELECT id FROM sys_users WHERE role = 'merchant' AND role_code = ? LIMIT 1";
+        db.query(inviteSql, [roleCodeStr], (errInv, invRows) => {
+          if (errInv) return res.status(500).json({ success: false, message: '服务器错误' });
+          if (!invRows || invRows.length === 0) {
+            return res.status(400).json({ success: false, message: '邀请码激活失败请重试' });
+          }
+          const insertSql = 'INSERT INTO sys_users (username, password, role, phone, role_code, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+          const insertParams = [username.trim(), hashedPassword, role, phoneStr, null];
+          db.query(insertSql, insertParams, (errIns, result) => {
+            if (errIns) return res.status(500).json({ success: false, message: '服务器错误，注册失败' });
+            smsStore.delete(phoneStr);
+            res.json({ success: true, message: '邀请码激活成功，注册成功，请登录', userId: result.insertId });
+          });
+        });
+        return;
+      }
+
+      // 无邀请码：生成一个 6 位码写入 role_code，可被他人反复使用
+      const tryGen = (timesLeft) => {
+        if (timesLeft <= 0) return res.status(500).json({ success: false, message: '生成邀请码失败，请重试' });
+        const code = genRoleCode(6);
+        const existSql = 'SELECT id FROM sys_users WHERE role_code = ? LIMIT 1';
+        db.query(existSql, [code], (errEx, exRows) => {
+          if (errEx) return res.status(500).json({ success: false, message: '服务器错误' });
+          if (exRows && exRows.length > 0) return tryGen(timesLeft - 1);
+          const insertSql = 'INSERT INTO sys_users (username, password, role, phone, role_code, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+          const insertParams = [username.trim(), hashedPassword, role, phoneStr, code];
+          db.query(insertSql, insertParams, (errIns, result) => {
+            if (errIns) return res.status(500).json({ success: false, message: '服务器错误，注册失败' });
+            smsStore.delete(phoneStr);
+            res.json({ success: true, message: '注册成功，请登录', userId: result.insertId, roleCode: code });
+          });
+        });
+      };
+      tryGen(10);
+      return;
+    }
+
+    const insertSql = 'INSERT INTO sys_users (username, password, role, phone, role_code, created_at) VALUES (?, ?, ?, ?, ?, NOW())';
+    const insertParams = [username.trim(), hashedPassword, role, phoneStr, roleCodeStr || null];
+    db.query(insertSql, insertParams, (err, result) => {
+      if (err) return res.status(500).json({ success: false, message: '服务器错误，注册失败' });
+      smsStore.delete(phoneStr);
       res.json({ success: true, message: '注册成功，请登录', userId: result.insertId });
     });
   });
@@ -171,6 +303,119 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ success: false, message: '登录已过期，请重新登录' });
   }
 }
+
+// ==========================================
+// 当前登录用户信息：GET /api/auth/me
+// ==========================================
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  const sql = 'SELECT id, username, role, avatar, phone, created_at, role_code FROM sys_users WHERE id = ? LIMIT 1';
+  db.query(sql, [req.user.userId], (err, rows) => {
+    if (err) {
+      console.error('❌ 查询当前用户信息失败:', err);
+      return res.status(500).json({ success: false, message: '服务器错误' });
+    }
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ success: false, message: '用户不存在' });
+    }
+    res.json({ success: true, user: rows[0] });
+  });
+});
+
+// ==========================================
+// 更新当前登录用户信息：PATCH /api/auth/me
+// ==========================================
+app.patch('/api/auth/me', authMiddleware, (req, res) => {
+  const body = req.body || {};
+  const hasUsername = Object.prototype.hasOwnProperty.call(body, 'username');
+  const hasAvatar = Object.prototype.hasOwnProperty.call(body, 'avatar');
+  const hasPassword = Object.prototype.hasOwnProperty.call(body, 'password');
+
+  if (!hasUsername && !hasAvatar && !hasPassword) {
+    return res.status(400).json({ success: false, message: '至少提交一个可更新字段' });
+  }
+
+  const username = hasUsername ? String(body.username || '').trim() : '';
+  if (hasUsername && username.length < 2) {
+    return res.status(400).json({ success: false, message: '用户名长度至少 2 个字符' });
+  }
+  const password = hasPassword ? String(body.password || '') : '';
+  if (hasPassword && password.length < 6) {
+    return res.status(400).json({ success: false, message: '新密码长度至少 6 位' });
+  }
+
+  let avatarValue = null;
+  if (hasAvatar) {
+    if (body.avatar === null) {
+      avatarValue = null;
+    } else if (typeof body.avatar === 'string') {
+      avatarValue = String(body.avatar).trim() || null;
+    } else {
+      return res.status(400).json({ success: false, message: '头像参数格式错误' });
+    }
+  }
+
+  const doUpdate = () => {
+    const sets = [];
+    const values = [];
+
+    if (hasUsername) {
+      sets.push('username = ?');
+      values.push(username);
+    }
+    if (hasAvatar) {
+      sets.push('avatar = ?');
+      values.push(avatarValue);
+    }
+    if (hasPassword) {
+      sets.push('password = ?');
+      values.push(bcrypt.hashSync(password, 10));
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ success: false, message: '没有可更新字段' });
+    }
+
+    values.push(req.user.userId);
+    const updateSql = `UPDATE sys_users SET ${sets.join(', ')} WHERE id = ?`;
+    db.query(updateSql, values, (errUpdate) => {
+      if (errUpdate) {
+        if (errUpdate.code === 'ER_DUP_ENTRY') {
+          return res.status(400).json({ success: false, message: '该名称已有人使用' });
+        }
+        console.error('❌ 更新用户信息失败:', errUpdate);
+        return res.status(500).json({ success: false, message: '服务器错误' });
+      }
+
+      const querySql = 'SELECT id, username, role, avatar, phone, created_at, role_code FROM sys_users WHERE id = ? LIMIT 1';
+      db.query(querySql, [req.user.userId], (errQuery, rows) => {
+        if (errQuery) {
+          console.error('❌ 查询更新后的用户信息失败:', errQuery);
+          return res.status(500).json({ success: false, message: '服务器错误' });
+        }
+        if (!rows || rows.length === 0) {
+          return res.status(404).json({ success: false, message: '用户不存在' });
+        }
+        res.json({ success: true, message: '更新成功', user: rows[0] });
+      });
+    });
+  };
+
+  if (!hasUsername) return doUpdate();
+
+  const checkSql = req.user.role === 'merchant'
+    ? "SELECT id FROM sys_users WHERE role = 'merchant' AND username = ? AND id <> ? LIMIT 1"
+    : 'SELECT id FROM sys_users WHERE username = ? AND id <> ? LIMIT 1';
+  db.query(checkSql, [username, req.user.userId], (errCheck, rows) => {
+    if (errCheck) {
+      console.error('❌ 校验用户名是否重复失败:', errCheck);
+      return res.status(500).json({ success: false, message: '服务器错误' });
+    }
+    if (rows && rows.length > 0) {
+      return res.status(400).json({ success: false, message: '该名称已有人使用' });
+    }
+    doUpdate();
+  });
+});
 
 /** 仅管理员可访问 */
 function adminMiddleware(req, res, next) {
@@ -348,7 +593,11 @@ app.post('/api/hotels', authMiddleware, (req, res) => {
 
   const priceNum = price != null && price !== '' ? Number(price) : null;
   const starNum = star_level != null && star_level !== '' ? Number(star_level) : null;
-  const tagsStr = typeof tags === 'string' ? tags.trim() : (Array.isArray(tags) ? tags.join(',') : null);
+  const tagsStr = Array.isArray(tags)
+    ? tags.map((t) => String(t).trim()).filter(Boolean).join('\uFF0C')
+    : (typeof tags === 'string'
+      ? tags.split(/[\uFF0C,]/).map((t) => String(t).trim()).filter(Boolean).join('\uFF0C')
+      : null);
   const insSql = `INSERT INTO hotels (merchant_id, name, city, address, phone, price, star_level, tags, image_url, description, status, create_time) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())`;
   const insValues = [req.user.userId, String(name).trim(), String(city).trim(), String(address).trim(), phone ? String(phone).trim() : null, priceNum, starNum, tagsStr || null, image_url ? String(image_url).trim() : null, description ? String(description).trim() : null];
@@ -601,7 +850,11 @@ app.put('/api/hotels/:id', authMiddleware, (req, res) => {
 
       const priceNum = price != null && price !== '' ? Number(price) : null;
       const starNum = star_level != null && star_level !== '' ? Number(star_level) : null;
-      const tagsStr = typeof tags === 'string' ? tags.trim() : (Array.isArray(tags) ? tags.join(',') : null);
+      const tagsStr = Array.isArray(tags)
+        ? tags.map((t) => String(t).trim()).filter(Boolean).join('\uFF0C')
+        : (typeof tags === 'string'
+          ? tags.split(/[\uFF0C,]/).map((t) => String(t).trim()).filter(Boolean).join('\uFF0C')
+          : null);
       const upSql = `UPDATE hotels SET name=?, city=?, address=?, phone=?, price=?, star_level=?, tags=?, image_url=?, description=?, status=0, create_time=create_time WHERE id=? AND merchant_id=?`;
       const upValues = [String(name).trim(), String(city).trim(), String(address).trim(), phone ? String(phone).trim() : null, priceNum, starNum, tagsStr || null, image_url ? String(image_url).trim() : null, description ? String(description).trim() : null, id, req.user.userId];
       

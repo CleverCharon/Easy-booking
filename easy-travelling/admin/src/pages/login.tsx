@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Tabs, Input, Button, Checkbox, Form, Select } from 'antd'
+import { Tabs, Input, Button, Checkbox, Form, Select, Space } from 'antd'
 import type { FormProps } from 'antd'
 import {
   UserOutlined,
@@ -11,9 +11,10 @@ import {
   RiseOutlined,
 } from '@ant-design/icons'
 import bgImg from '../img/bg-1.png'
-import { login as apiLogin, register as apiRegister } from '../api/auth'
+import { login as apiLogin, register as apiRegister, sendSmsCode as apiSendSmsCode } from '../api/auth'
 import { setToken, setUser } from '../utils/auth'
 import { toast } from '../utils/toast'
+import { PhoneFields } from '../components/PhoneFields'
 
 type TabKey = 'login' | 'register'
 
@@ -28,6 +29,10 @@ interface RegisterFormValues {
   password: string
   confirmPassword: string
   role: 'merchant' | 'admin'
+  phoneCode: string
+  phoneNumber: string
+  smsCode: string
+  roleCode?: string
 }
 
 export default function LoginPage() {
@@ -35,8 +40,37 @@ export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('login')
   const [loginLoading, setLoginLoading] = useState(false)
   const [registerLoading, setRegisterLoading] = useState(false)
+  const [smsSending, setSmsSending] = useState(false)
+  const [smsCountdown, setSmsCountdown] = useState(0)
   const [loginForm] = Form.useForm<LoginFormValues>()
   const [registerForm] = Form.useForm<RegisterFormValues>()
+
+  useEffect(() => {
+    if (smsCountdown <= 0) return
+    const t = setInterval(() => setSmsCountdown((s) => s - 1), 1000)
+    return () => clearInterval(t)
+  }, [smsCountdown])
+
+  const handleSendSms = async () => {
+    if (smsCountdown > 0 || smsSending) return
+    const phoneCode = registerForm.getFieldValue('phoneCode') || '+86'
+    const phoneNumber = (registerForm.getFieldValue('phoneNumber') || '').trim()
+    if (!phoneNumber) {
+      toast.error('请先输入手机号')
+      return
+    }
+    const phone = `${phoneCode}${phoneNumber}`
+    setSmsSending(true)
+    try {
+      const res = await apiSendSmsCode(phone)
+      toast.success(res.message || '验证码已发送')
+      setSmsCountdown(60)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '发送失败')
+    } finally {
+      setSmsSending(false)
+    }
+  }
 
   const onLoginFinish: FormProps<LoginFormValues>['onFinish'] = async (values) => {
     setLoginLoading(true)
@@ -56,13 +90,18 @@ export default function LoginPage() {
   const onRegisterFinish: FormProps<RegisterFormValues>['onFinish'] = async (values) => {
     setRegisterLoading(true)
     try {
-      await apiRegister({
+      const phone = `${values.phoneCode}${String(values.phoneNumber || '').trim()}`
+      const res = await apiRegister({
         username: values.username,
         password: values.password,
         role: values.role,
+        phone,
+        smsCode: values.smsCode,
+        roleCode: values.roleCode ? String(values.roleCode).trim() : '',
       })
-      toast.success('注册成功，请登录')
+      toast.success(res.message || '注册成功，请登录')
       registerForm.resetFields()
+      setSmsCountdown(0)
       setActiveTab('login')
       loginForm.setFieldValue('username', values.username)
     } catch (e) {
@@ -265,6 +304,81 @@ export default function LoginPage() {
                           ]}
                         />
                       </Form.Item>
+
+                      <Form.Item
+                        label="手机号"
+                        required
+                        tooltip="手机号会写入系统用户表，用于短信验证"
+                      >
+                        <PhoneFields
+                          codeName="phoneCode"
+                          numberName="phoneNumber"
+                          numberPlaceholder="输入号码"
+                          numberRules={[{ required: true, message: '请输入手机号' }]}
+                        />
+                      </Form.Item>
+
+                      <Form.Item label="手机号验证码" required>
+                        <Space.Compact className="w-full" size="middle">
+                          <Form.Item
+                            name="smsCode"
+                            noStyle
+                            rules={[{ required: true, message: '请输入验证码' }]}
+                          >
+                            <Input size="large" placeholder="请输入验证码" />
+                          </Form.Item>
+                          <Button
+                            size="large"
+                            className="rounded-lg"
+                            onClick={handleSendSms}
+                            disabled={smsCountdown > 0}
+                            loading={smsSending}
+                            style={{ minWidth: 140 }}
+                          >
+                            {smsCountdown > 0 ? `${smsCountdown}s后重试` : '发送验证码'}
+                          </Button>
+                        </Space.Compact>
+                      </Form.Item>
+
+                      <Form.Item noStyle shouldUpdate={(prev, curr) => prev.role !== curr.role}>
+                        {({ getFieldValue }) => {
+                          const role = getFieldValue('role') as RegisterFormValues['role']
+                          if (role === 'admin') {
+                            return (
+                              <Form.Item
+                                name="roleCode"
+                                label="身份码"
+                                rules={[
+                                  { required: true, message: '请输入身份码' },
+                                  { pattern: /^[A-Za-z0-9]{6}$/, message: '身份码为 6 位字母或数字' },
+                                ]}
+                              >
+                                <Input size="large" className="input-rounded" placeholder="请输入 6 位身份码" maxLength={6} />
+                              </Form.Item>
+                            )
+                          }
+                          // merchant
+                          return (
+                            <Form.Item
+                              name="roleCode"
+                              label="邀请码"
+                              extra={<span className="text-gray-400">如果没有邀请码可以不填</span>}
+                              rules={[
+                                () => ({
+                                  validator(_, value) {
+                                    if (!value) return Promise.resolve()
+                                    if (/^[A-Za-z0-9]{6}$/.test(String(value))) return Promise.resolve()
+                                    return Promise.reject(new Error('邀请码为 6 位字母或数字'))
+                                  },
+                                }),
+                              ]}
+                            >
+                              <Input size="large" className="input-rounded" placeholder="选填：请输入 6 位邀请码" maxLength={6} />
+                            </Form.Item>
+                          )
+                        }}
+                      </Form.Item>
+
                       <Form.Item className="mb-0 mt-2">
                         <Button
                           type="primary"
