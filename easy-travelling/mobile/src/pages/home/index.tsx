@@ -21,6 +21,10 @@ import { getLocation } from '../../utils/location'
 import { allCities } from '../../utils/city-data'
 import './index.scss'
 
+/**
+ * 首页组件
+ * 展示 Banner、搜索筛选器、快捷入口及推荐内容。
+ */
 const HomePage = () => {
   const { 
     city, startDate, endDate, setCity, setDates, 
@@ -33,16 +37,16 @@ const HomePage = () => {
   const [selectedTab, setSelectedTab] = useState('国内')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [banners, setBanners] = useState<any[]>([])
-  const [cityList, setCityList] = useState<any[]>([])
+  const [cityList, setCityList] = useState<any[]>(allCities)
   const [fullCities, setFullCities] = useState<any[]>([])
   
-  // Visibility States
+  // 弹窗可见性状态管理
   const [isCalendarVisible, setIsCalendarVisible] = useState(false)
   const [isCityVisible, setIsCityVisible] = useState(false)
   const [isGuestVisible, setIsGuestVisible] = useState(false)
   const [isPriceStarVisible, setIsPriceStarVisible] = useState(false)
 
-  // Local state for Price/Star popup
+  // 价格/星级筛选的本地临时状态
   const [localMinPrice, setLocalMinPrice] = useState(minPrice)
   const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice)
   const [localStars, setLocalStars] = useState<string[]>(starLevels)
@@ -55,9 +59,6 @@ const HomePage = () => {
         
         const cityRes = await get('/cities')
         setFullCities(cityRes)
-        
-        // Use static nationwide city list for Picker
-        setCityList(allCities)
       } catch (e) {
         console.error('Fetch home data failed', e)
       }
@@ -65,6 +66,9 @@ const HomePage = () => {
     fetchData()
   }, [])
 
+  /**
+   * 处理地理位置定位请求
+   */
   const handleLocation = async () => {
     try {
       Toast.loading('定位中...', { duration: 0 })
@@ -114,14 +118,8 @@ const HomePage = () => {
   }
 
   const confirmDate = (param: any) => {
-    // param format from NutUI Calendar range: [Date, Date]
-    // The param is usually an array of arrays or strings, check structure
-    // console.log('confirmDate param:', param)
-    
     if (Array.isArray(param) && param.length === 2) {
-      // NutUI might return [DateStr, DateStr] or [[Y,M,D,Str], ...]
-      // Let's assume standard NutUI behavior where param[0][3] is 'YYYY-MM-DD'
-      
+      // 处理 NutUI 日历返回的日期格式
       const startVal = param[0][3] || param[0]
       const endVal = param[1][3] || param[1]
       
@@ -132,18 +130,9 @@ const HomePage = () => {
   }
 
   const confirmCity = (options: any[], values: any[]) => {
-    // NutUI Picker onConfirm signature might vary by version
-    // Usually it returns (options, values)
-    // options: array of selected option objects {text, value}
-    // values: array of selected values
-    
-    // Safety check
-    // Try to get text from options first, fallback to value
     const selected = options?.[0]
     const newVal = selected?.text || selected?.value || values?.[0]
     
-    console.log('confirmCity:', options, values, 'Selected:', newVal)
-
     if (newVal) {
       setCity(newVal)
     }
@@ -155,7 +144,6 @@ const HomePage = () => {
   }
 
   const confirmPriceStar = () => {
-    console.log('Confirming Price/Star:', localMinPrice, localMaxPrice, localStars)
     setPriceRange(localMinPrice, localMaxPrice)
     setStarLevels(localStars)
     setIsPriceStarVisible(false)
@@ -197,7 +185,6 @@ const HomePage = () => {
     const start = dayjs(startDate)
     const end = dayjs(endDate)
     const diff = end.diff(start, 'day')
-    // Ensure at least 1 night if dates are invalid or same day
     return diff > 0 ? diff : 1
   }
 
@@ -205,7 +192,6 @@ const HomePage = () => {
   const startStr = dayjs(startDate).format('MM月DD日')
   const endStr = dayjs(endDate).format('MM月DD日')
 
-  // Helper to determine day text (Today/Tomorrow)
   const getDayText = (date: string) => {
     const today = dayjs().format('YYYY-MM-DD')
     const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD')
@@ -381,15 +367,20 @@ const HomePage = () => {
       />
 
       {/* City Picker */}
-      <Picker
-        visible={isCityVisible}
-        options={[cityList]}
-        onConfirm={(options, values) => confirmCity(options, values)}
+      <Popup 
+        visible={isCityVisible} 
+        position="bottom" 
         onClose={() => setIsCityVisible(false)}
-        title="选择城市"
-        threeDimensional={false}
-        style={{ height: '300px' }} 
-      />
+      >
+        <Picker
+          visible={true} // Picker is always visible inside the Popup
+          options={[cityList]}
+          defaultValue={[city]}
+          onConfirm={(options, values) => confirmCity(options, values)}
+          onClose={() => setIsCityVisible(false)}
+          title="选择城市"
+        />
+      </Popup>
 
       {/* Guest Selection Popup */}
       <Popup 

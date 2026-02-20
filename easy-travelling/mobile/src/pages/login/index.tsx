@@ -7,6 +7,11 @@ import { useUserStore } from '../../store/user'
 import { post } from '../../utils/request'
 import './index.scss'
 
+/**
+ * 登录页面组件
+ * 处理用户认证逻辑，支持短信验证码和密码两种方式。
+ * 在小程序环境下支持微信一键登录。
+ */
 const LoginPage = () => {
   const { login } = useUserStore()
   const [phone, setPhone] = useState('')
@@ -18,12 +23,15 @@ const LoginPage = () => {
   const [isWeapp, setIsWeapp] = useState(false)
 
   useEffect(() => {
-    // Check if running in Wechat Mini Program
+    // 检查是否运行在微信小程序环境
     if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
       setIsWeapp(true)
     }
   }, [])
 
+  /**
+   * 请求发送短信验证码
+   */
   const handleGetCode = async () => {
     if (phone && phone.length === 11) {
       try {
@@ -40,13 +48,16 @@ const LoginPage = () => {
         }, 1000)
         Toast.show('验证码已发送')
       } catch (e: any) {
-        // Toast handled by request.ts usually, but ensure we catch it
+        // 错误通常由 request.ts 拦截器统一处理
       }
     } else {
       Toast.show('请输入正确的手机号')
     }
   }
 
+  /**
+   * 处理登录提交逻辑
+   */
   const handleLogin = async () => {
     if (!agreed) {
       Toast.show('请先阅读并同意协议')
@@ -68,7 +79,7 @@ const LoginPage = () => {
     try {
       const res = await post('/user/login', { phone, code, password, method: loginMethod })
       
-      // If new user (needs setup)
+      // 如果后端返回新用户标识，则重定向至账号设置页
       if (res.is_new) {
         Toast.show('请设置账号密码')
         setTimeout(() => {
@@ -88,13 +99,16 @@ const LoginPage = () => {
       }
     } catch (e: any) {
       console.error(e)
-      // 如果不是已处理的业务错误（如密码错误），才显示通用提示
+      // 仅当特定业务错误未被处理时显示通用提示
       if (!e.message || !e.message.includes('密码')) {
          Toast.show(e.message || '登录异常')
       }
     }
   }
 
+  /**
+   * 处理微信登录 (仅限小程序)
+   */
   const handleWechatLogin = async () => {
     if (!agreed) {
       Toast.show('请先阅读并同意协议')
@@ -104,7 +118,7 @@ const LoginPage = () => {
     try {
       const loginRes = await Taro.login()
       if (loginRes.code) {
-        // Send code to backend
+        // 通过后端交换 code 获取 token
         const res = await post('/user/wx-login', { code: loginRes.code })
         if (res.token) {
           login(res.userInfo)

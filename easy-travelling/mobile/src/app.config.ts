@@ -16,6 +16,7 @@ export default defineAppConfig({
     navigationBarTitleText: '易宿',
     navigationBarTextStyle: 'black'
   },
+  animation: false, // Disable default page transition animation to avoid conflicts
   tabBar: {
     color: '#666',
     selectedColor: '#fa2c19',

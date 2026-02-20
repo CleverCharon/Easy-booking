@@ -23,6 +23,10 @@ import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
 
+/**
+ * 酒店详情页组件
+ * 展示酒店详细信息、图片轮播、房型列表及预订入口。
+ */
 const App: React.FC = () => {
   const router = useRouter();
   const { id } = router.params;
@@ -46,14 +50,13 @@ const App: React.FC = () => {
          const res = await get(`/hotels/${id}`);
          setHotel(res);
          
-         // Add to browsing history if logged in
+         // 如果用户已登录，记录浏览历史
          if (userInfo?.id) {
             await post('/history/add', { user_id: userInfo.id, hotel_id: id });
             
-            // Check if favorited (need backend support, mock for now)
+            // 检查收藏状态
             const favRes = await get(`/favorites/list?user_id=${userInfo.id}`);
-            // Check if current hotel is in the favorites list
-            // Note: API returns array of hotel objects, check if any hotel.id matches current id
+            // 判断当前酒店是否在用户收藏列表中
             const isFav = favRes.some((h: any) => String(h.id) === String(id));
             setIsFavorite(isFav);
          }
@@ -65,6 +68,9 @@ const App: React.FC = () => {
     fetchDetail();
   }, [id, userInfo]);
 
+  /**
+   * 切换当前酒店的收藏状态
+   */
   const toggleFavorite = async () => {
     if (!userInfo?.id) {
       Toast.show('请先登录');
@@ -87,6 +93,9 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * 处理预订操作
+   */
   const handleBook = () => {
     if (!userInfo?.id) {
       Toast.show('请先登录');
@@ -96,7 +105,6 @@ const App: React.FC = () => {
 
     if (selectedRoom === null) {
       Toast.show({ content: '请选择房型', icon: 'fail' });
-      // document.querySelector('.pb-28')?.scrollIntoView({ behavior: 'smooth' }); // Taro H5 fix later
     } else {
        Taro.navigateTo({
           url: `/pages/order/create/index?hotelId=${id}&roomId=${selectedRoom}`
@@ -106,9 +114,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      // Note: window.scrollY might not work in Taro H5/MiniProgram consistently.
-      // Better to use onPageScroll but that requires page configuration or hook.
-      // Keeping original logic for now assuming H5 context.
+      // 监听滚动位置以切换导航栏样式
       if (window.scrollY > 100) {
         setIsScrolled(true);
       } else {
@@ -132,13 +138,14 @@ const App: React.FC = () => {
   })) || [];
 
   const handleDateChange = (param: any) => {
-    // NutUI Calendar returns an array of dates for range selection
+    // 处理 NutUI 日历的范围选择结果
     if (param && param.length >= 2) {
       const start = new Date(param[0][3]);
       const end = new Date(param[1][3]);
       setCheckInDate(`${start.getMonth() + 1}月${start.getDate()}日`);
       setCheckOutDate(`${end.getMonth() + 1}月${end.getDate()}日`);
-      // Calculate nights
+      
+      // 计算入住时长
       const diffTime = Math.abs(end.getTime() - start.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       setNights(diffDays);
@@ -415,7 +422,7 @@ const App: React.FC = () => {
               }
               if (selectedRoom === null) {
                 Toast.show({ content: '请选择房型', icon: 'fail' });
-                document.querySelector('.pb-28')?.scrollIntoView({ behavior: 'smooth' });
+                // Note: Scroll behavior might differ in Taro environments
               } else {
                  Taro.navigateTo({
                     url: `/pages/order/create/index?hotelId=1&roomId=${selectedRoom}`
