@@ -23,7 +23,7 @@ import { getUser, setUser } from '../../utils/auth'
 import { toast } from '../../utils/toast'
 import defaultHotelImg from '../../img/hotel-defalt.jpg'
 import pageBg from '../../img/bg-1.png'
-import sidebarBg from '../../img/bg-2.png'
+import sidebarBg from '../../img/bg-3.jpg'
 import defaultAvatar from '../../img/defaultAvatar.jpg'
 
 interface StatusConfig {
@@ -497,14 +497,21 @@ export default function HotelListPage() {
         aria-hidden
       />
 
+      {/* ✅【修改位置1】调整左右区域比例：左侧从 1/4 改为 1/5，右侧从 3/4 改为 4/5 */}
       <div className="flex min-h-[calc(100vh-56px)] flex-col lg:flex-row">
-        <aside className="w-full lg:w-1/4 lg:min-w-[320px]">
+        {/* ✅【修改】左侧宽度从 w-1/4 改为 w-1/5，最小宽度从 320px 减到 280px */}
+        <aside className="w-full lg:w-1/5 lg:min-w-[280px]">
           <div
             className="relative min-h-[420px] overflow-hidden bg-cover bg-center shadow-[0_18px_45px_rgba(20,36,90,0.28)] lg:min-h-[calc(100vh-56px)]"
-            style={{ backgroundImage: `url(${sidebarBg})` }}
+            // ✅【修改位置6】可以在这里更换背景图片或使用渐变色
+            // ✅【修改】添加 backgroundPosition 参数，方便调整图片显示位置
+            style={{ 
+              background: `url(${sidebarBg}) no-repeat -160px -200px / 250% 120%`,
+            }}
           >
             <div className="absolute inset-0 bg-gradient-to-b from-[#1e4fba]/70 to-[#9d5ed8]/55" />
-            <div className="relative z-10 flex min-h-[420px] flex-col p-6 text-white lg:min-h-[calc(100vh-56px)]">
+            {/* ✅【修改位置2】内边距从 p-6 减小到 p-4 */}
+            <div className="relative z-10 flex min-h-[420px] flex-col p-4 text-white lg:min-h-[calc(100vh-56px)]">
               {editingPassword ? (
                 <div className="mx-auto mt-12 w-full max-w-[260px]">
                   <div className="mb-2 text-sm font-medium text-white/90">新密码</div>
@@ -555,33 +562,35 @@ export default function HotelListPage() {
                 </div>
               ) : (
                 <>
-                  <div className="mb-6 flex flex-col items-center text-center">
+                  {/* ✅【修改位置3】非编辑模式下的用户信息展示区域 - 减小间距和尺寸 */}
+                  <div className="mb-4 flex flex-col items-center text-center">
                     <img
                       src={avatarDisplay}
                       alt="avatar"
-                      className="h-28 w-28 rounded-full border-4 border-white/30 object-cover shadow-lg"
+                      className="h-24 w-24 rounded-full border-4 border-white/30 object-cover shadow-lg"
                     />
-                    <h3 className="mb-1 mt-4 text-3xl font-bold">{profile?.username || user?.username || '商户'}</h3>
-                    <p className="m-0 text-sm text-white/80">资深酒店管理专家</p>
+                    <h3 className="mb-0 mt-2 text-2xl font-bold">{profile?.username || user?.username || '商户'}</h3>
+                    <p className="m-0 text-xs text-white/80">资深酒店管理专家</p>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="rounded-xl bg-white/22 p-4 backdrop-blur-sm">
-                      <div className="text-sm text-white/80">商户ID</div>
-                      <div className="mt-1 text-xl font-semibold">HS{String(profile?.id || user?.id || '').padStart(8, '0')}</div>
+                  {/* ✅【修改位置4】信息卡片区域 - 减小间距、内边距和文字大小 */}
+                  <div className="space-y-3">
+                    <div className="rounded-xl bg-white/22 p-3 backdrop-blur-sm">
+                      <div className="text-xs text-white/80">商户ID</div>
+                      <div className="mt-1 text-lg font-semibold">HS{String(profile?.id || user?.id || '').padStart(8, '0')}</div>
                     </div>
-                    <div className="rounded-xl bg-white/22 p-4 backdrop-blur-sm">
-                      <div className="text-sm text-white/80">注册时间</div>
-                      <div className="mt-1 text-xl font-semibold">{formatDate(profile?.created_at)}</div>
+                    <div className="rounded-xl bg-white/22 p-3 backdrop-blur-sm">
+                      <div className="text-xs text-white/80">注册时间</div>
+                      <div className="mt-1 text-lg font-semibold">{formatDate(profile?.created_at)}</div>
                     </div>
-                    <div className="rounded-xl bg-white/22 p-4 backdrop-blur-sm">
-                      <div className="text-sm text-white/80">商户电话</div>
-                      <div className="mt-1 text-xl font-semibold">{profile?.phone || '-'}</div>
+                    <div className="rounded-xl bg-white/22 p-3 backdrop-blur-sm">
+                      <div className="text-xs text-white/80">商户电话</div>
+                      <div className="mt-1 text-lg font-semibold">{profile?.phone || '-'}</div>
                     </div>
-                    <div className="rounded-xl bg-white/22 p-4 backdrop-blur-sm">
-                      <div className="text-sm text-white/80">邀请码</div>
+                    <div className="rounded-xl bg-white/22 p-3 backdrop-blur-sm">
+                      <div className="text-xs text-white/80">邀请码</div>
                       <div className="mt-1 flex items-center justify-between gap-2">
-                        <span className="truncate text-xl font-semibold text-[#7CFFBE]">{profile?.role_code || '暂无'}</span>
+                        <span className="truncate text-lg font-semibold text-[#7CFFBE]">{profile?.role_code || '暂无'}</span>
                         <Button
                           type="text"
                           size="small"
@@ -596,25 +605,62 @@ export default function HotelListPage() {
                 </>
               )}
 
-              <div className="mt-auto pt-8">
+              {/* ✅【修改位置5】底部按钮区域 - 上边距从 pt-8 减小到 pt-4 */}
+              <div className="mt-auto pt-4">
                 {editingProfile ? (
-                  <Button
-                    block
-                    loading={savingProfile}
-                    className="h-11 rounded-lg border-0 bg-[#4f86df] text-white hover:!bg-[#5a90e8] hover:!text-white"
-                    onClick={submitProfile}
-                  >
-                    提交修改
-                  </Button>
+                  // ✅【修改】编辑资料模式 - 返回按钮在提交按钮上方
+                  <div className="space-y-3">
+                  {/* 返回按钮 - 与提交按钮相同样式但不同颜色 */}
+                    <Button
+                      block
+                      loading={savingProfile}
+                      className="h-11 rounded-lg border-0 bg-[#4f86df] text-white hover:!bg-[#5a90e8] hover:!text-white"
+                      onClick={submitProfile}
+                    >
+                      提交修改
+                    </Button>
+
+                    <Button
+                      block
+                      size="large"
+                      icon={<RollbackOutlined />}
+                      onClick={() => {
+                        setEditingProfile(false);
+                        setEditingPassword(false);
+                      }}
+                      className="h-11 rounded-lg border border-white/30 bg-white/20 text-white hover:bg-white/30 hover:border-white/40 flex items-center justify-center"
+                    >
+                      返回
+                    </Button>
+                  </div>
+                  
                 ) : editingPassword ? (
-                  <Button
-                    block
-                    loading={savingProfile}
-                    className="h-11 rounded-lg border-0 bg-[#4f86df] text-white hover:!bg-[#5a90e8] hover:!text-white"
-                    onClick={submitPassword}
-                  >
-                    提交修改
-                  </Button>
+                  // ✅【修改】编辑资料模式 - 返回按钮在提交按钮上方
+                  <div className="space-y-3">
+                  {/* 返回按钮 - 与提交按钮相同样式但不同颜色 */}
+                    <Button
+                      block
+                      loading={savingProfile}
+                      className="h-11 rounded-lg border-0 bg-[#4f86df] text-white hover:!bg-[#5a90e8] hover:!text-white"
+                      onClick={submitPassword}
+                    >
+                      提交修改
+                    </Button>
+
+                    <Button
+                      block
+                      size="large"
+                      icon={<RollbackOutlined />}
+                      onClick={() => {
+                        setEditingProfile(false);
+                        setEditingPassword(false);
+                      }}
+                      className="h-11 rounded-lg border border-white/30 bg-white/20 text-white hover:bg-white/30 hover:border-white/40 flex items-center justify-center"
+                    >
+                      返回
+                    </Button>
+                  </div>
+
                 ) : (
                   <div className="space-y-3">
                     <Button
@@ -638,7 +684,8 @@ export default function HotelListPage() {
           </div>
         </aside>
 
-        <main className="w-full lg:w-3/4 p-6 md:p-8">
+        {/* ✅【修改】右侧宽度从 w-3/4 改为 w-4/5 */}
+        <main className="w-full lg:w-4/5 p-6 md:p-8">
           <div className="relative z-20 mb-6 flex items-center justify-between">
             <div>
               <h1 className="m-0 text-2xl font-bold tracking-tight text-gray-800 md:text-3xl">我的酒店</h1>
