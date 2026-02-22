@@ -1,0 +1,83 @@
+@easy-travelling/admin/src/img 请使用该文件夹中的图片@easy-travelling/admin/src/img/bg-1.png 作为登录注册页面的背景，页面设计如图，请做好每一个圆角和布局细节，要求美观实用，一些组件可以使用antdesign组件库，我是一名零基础初学者，请完整给出登录注册页面的设计与代码
+
+不要使用css文件，请用tailwindcss实现同样的样式，@easy-travelling/admin/tailwind.config.js @easy-travelling/admin/src/index.css 
+
+删除Login文件夹，并将该文件夹下的index.tsx文件改名为login.tsx文件
+
+For the code present, we get this error:
+```
+找不到模块“../../img/bg-1.png”或其相应的类型声明。
+```
+Fix it, verify, and then give a concise explanation. @easy-travelling/admin/src/pages/Login/index.tsx:10-13 
+
+@easy-travelling/admin/src/pages/login.tsx 请给组件设计从左上到右下的渐变，颜色由#32bcef到#2c4fa3。并且做一些微调，使得页面更有高级感
+
+@easy-travelling/admin @easy-travelling/server 请继续实现登录注册页面的具体功能，与数据库进行联动
+
+好的，登录注册功能目前没有问题。接下来将实现商户注册登录后进入一个页面，该页面是一个美化过的表格（antdesign组件），初始为空表格，商家可以点击按钮跳转到酒店发布页，在酒店发布页填写商家想发布的酒店信息，具体填写的信息要和数据库建的表相匹配（如图所示），如果数据的属性存在错误，请暂停并指出，给出更优的查询，如果没问题，则当商家填完酒店信息点击发布后，将相应酒店信息储存进数据库，同时最开始的表格页面会新生成一行显示刚刚发布的酒店的部分关键信息与审核状态，（如果是正在审核的状态，后面会有一个按钮显示“退回申请”，点击该按钮后会退回申请，但不会清空其在数据库对应的信息，同时表格中该行变为灰色，行尾按钮变为“重新发布”和“删除”两个按钮，此时点击“重新发布”则跳转到酒店发布页，并自动填充对应的信息，其他功能一致。当点击“删除”按钮，表格中该行被删除，同时删除数据库中对应内容。）（如果是已通过的状态，则行尾变为“编辑并重新发布“和”下架“两个按钮，点击”编辑并重新发布“会跳转到酒店发布页，并自动填充对应的信息，其他功能一致。点击”下架“按钮会删除该行并删除其在数据库对应的信息）（如果是被退回的状态，则和点击”退回申请“后的功能逻辑相同）。
+请先分析实现方案，暂时不需要给出具体实现过程，我需要确保你理解了这些功能
+
+请先使用toast弹出各种提示消息，并运用到所有页面中来，当登录或注册成功后弹出对应消息，并美化toast样式。@easy-travelling/admin/src 
+
+请按照要求分步实现之前阐述的商户发布等功能，不需要一次性全部实现，慢慢逐步实现，确保无误，页面设计要保持和登录注册页类似风格（但背景图是半透明），尽可能实现最大化美观
+
+还是在一直显示加载中，而且登录后直接跳转到hotels页面了，请删除home.tsx，并将欢迎和退出登录按钮放在hotels页面的最上方中作为header在登录后所有页面永远显示，而且不会遮挡页面内容@easy-travelling/admin/src/pages/home.tsx @easy-travelling/admin/src/pages/hotels 
+
+表格一直在刷新，虽然功能正常，显示也正常，但是在不断刷新。同时操作那一列没有任何按钮，请按照要求添加对应的按钮及功能
+
+在发布酒店页，填写封面图URL那一行。能不能改为从商家本地电脑上传图片作为封面图（并且帮忙分析一下点击发布后如何将商家上传的图片保存在数据库中并在前端进行渲染）。而且在房型信息中，填写房型图URL那一行，改为从商家本地电脑上传图片作为房型图，并且可以上传多张房型图，请分析实现方法，暂时不需要给出具体实现
+
+我已经成功创建并获取到AccessKey ID：”，AccessKey Secret：“”。请按要求完成之前阐述的所有功能，要求逻辑严密，如果有任何需要我提供的信息或产生疑问，请立刻停止生成并向我询问
+
+bucket名称为“easy-travelling”，节点是“华北2（北京）”
+
+依然显示同样报错，请分析可能是什么原因并解决，下面是response的内容：<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Error</title>
+    </head>
+    <body>
+        <pre>
+            MulterError: File too large<br>
+            &nbsp;&nbsp;at abortWithCode (C:\Users\Administrator\Desktop\Easy-booking\easy-travelling\server\node_modules\multer\lib\make-middleware.js:85:22)<br>
+            &nbsp;&nbsp;at FileStream.&lt;anonymous &gt;(C:\Users\Administrator\Desktop\Easy-booking\easy-travelling\server\node_modules\multer\lib\make-middleware.js:155:11)<br>
+            &nbsp;&nbsp;at FileStream.emit (node:events:518:28)<br>
+            &nbsp;&nbsp;at SBMH.ssCb [as _cb] (C:\Users\Administrator\Desktop\Easy-booking\easy-travelling\server\node_modules\busboy\lib\types\multipart.js:479:32)<br>
+            &nbsp;&nbsp;at feed (C:\Users\Administrator\Desktop\Easy-booking\easy-travelling\server\node_modules\streamsearch\lib\sbmh.js:248:10)<br>
+            &nbsp;&nbsp;at SBMH.push (C:\Users\Administrator\Desktop\Easy-booking\easy-travelling\server\node_modules\streamsearch\lib\sbmh.js:104:16)<br>
+            &nbsp;&nbsp;at Multipart._write (C:\Users\Administrator\Desktop\Easy-booking\easy-travelling\server\node_modules\busboy\lib\types\multipart.js:567:19)<br>
+            &nbsp;&nbsp;at writeOrBuffer (node:internal/streams/writable:572:12)<br>
+            &nbsp;&nbsp;at _write (node:internal/streams/writable:501:10)<br>&nbsp;&nbsp;at Writable.write (node:internal/streams/writable:510:10)
+        </pre>
+    </body>
+</html>
+
+在商户提交申请后，list页面的表格那一行的行尾再添加一个”查看申请“按钮，点击后跳转到publish页面，但是页面尾部按钮变为”返回申请列表“，点击后返回到list页面
+
+点击查看申请按钮后进入publish页面时，删除最下方“返回申请列表”按钮
+
+当在list页面点击“删除”或“编辑并重新发布”按钮时，对应的对oss中的对应文件也进行删除或添加的操作
+
+@easy-travelling/admin/src/pages/hotels/publish.tsx 在商户发布酒店时，在发布酒店页面，输入所在城市时，使用中国的省市列表进行选择，而非手动输入。填写联系电话时，号码输入框前面加入选择框，选择框中有国旗加国旗对应的区号，国旗图片在@easy-travelling/admin/src/img/country 中，选择区号后再输入后方的号码，最后点击发布上传时将区号和号码合并上传到数据库（国旗图片不需要上传）。填写标签时不再使用逗号分隔，而是采取多个输入框（初始只有一个输入框，商户可以点击后面的加号添加输入框），多个输入框输入后的结果合并并用逗号分隔后上传数据库。
+
+联系电话下方选择国旗和输入号码那一行，请将选择国旗的选择框宽度变为容器三分之一，剩下三分之二给输入号码
+
+当填写发布页面表格以及上传图片是不需要传图片到oss，只有当点击提交发布按钮后才上传图片到oss。并且点击上传图片后出现如下报错：@c:\Users\Administrator\.cursor\projects\c-Users-Administrator-Desktop-Easy-booking\terminals\1.txt:388-470 
+
+很好，接下来是管理员的操作，当管理员登录后，会进入一个管理页面，管理页面有一个两个表格（表格顶部可进行两个表格的切换），分别是“已发布”和“待审核”，“已发布”表格中用于记录已经通过审核成功上线的商户所发布的酒店信息，包含该酒店的一些主要信息，行尾是“查看信息”按钮和“下线”按钮，点击“查看信息”后会进入酒店信息详情页，酒店信息详情页和publish页面一模一样，但不能编辑，和商户点击“查看申请”按钮后的逻辑和页面类似。点击“下线”按钮后，会弹出一个输入小窗（不要用windows工具，用其他方法进行弹窗并美化），小窗有标题”下线原因“和下方输入框和输入框下方的提交和取消按钮，管理员在输入框输入下线原因后点击提交按钮，并将下线原因上传到对应数据库中（这需要在数据库hotels表中新建一个”cancellation“属性，用于存储下线原因或拒绝原因的信息），该商户的酒店状态变为“已下线”，同步清除其对应的数据库中的数据以及oss中对应的图片，”已发布“表格中该行酒店信息变为灰色，行尾只剩下”删除“按钮，点击”删除“后，该行被删除。此时对应的商户的该行酒店信息变为灰色，行尾只剩下”删除“按钮，点击”删除“后，该行被删除。​“待审核”表格中显示商户名称（通过数据库hotels表中merchant_id属性和sys_users表中的id属性关联得到商户名称）、上传的酒店主要信息，同样行尾有一个“查看信息”按钮（同上），还有一个“通过”和“拒绝”按钮。点击“通过”按钮后，该行转移到”已发布“表格中。点击”拒绝“按钮后，会弹出一个输入小窗（不要用windows工具，用其他方法进行弹窗并美化），小窗有标题”拒绝原因“和下方输入框和输入框下方的提交和取消按钮，管理员在输入框输入拒绝原因后点击提交按钮后会在”待审核“表格中删除该行，并将拒绝原因上传到对应数据库中（这需要在数据库hotels表中新建一个”cancellation“属性，用于存储下线原因或拒绝原因的信息），然后在”待审核“表格中删除被拒绝的这一行酒店信息。请分析一下我所描述的要求，暂时不用给出实现，先给出数据库中hotels表新建”cancellation“属性的查询代码。
+
+当管理员在“已发布”表格中下线商户已通过审核的酒店时，不会删除商户l对应list页面表格中对应行的信息，而仅仅是状态变更为“已下线”，该行尾的按钮和“已拒绝”状态时的按钮一样，同样是“重新发布“、”删除”、“查看信息”这三个按钮。当管理员填写下线原因或拒绝原因并上传到数据库后，此时商户list页面表格对应行的查看信息按钮被点击后进入的publish页面末尾会附上红色字体的“下线原因”或“拒绝原因”，请修改并按要求完善
+
+如果是商家自己退回申请，则将拒绝原因写为“商家自行退回申请”并在点击显示信息后显示在publish页面底部
+
+在管理员系统的”已发布表格中插入一列“更新时间”的属性，对应数据库hotels表中update_time属性。当管理员下线商户已通过的酒店后，数据库hotels表中update_time属性的内容更新为下线时的时间
+
+如果是商家在发布完后，酒店处于待审核状态时自行退回申请，则将拒绝原因写为“商家自行退回申请”并写入数据库hotels表中cancellation属性
+
+管理员点击下线按钮后并没有更新该行酒店对应的更新时间，请完善
+
+数据库中update_time属性确实因为下线而更新了，只是前端管理员系统“已发布”表格中的update_time内容没有更新
+
+在管理员系统的“已发布”表格中的头部插入一行“商户名称”，每次数据库更新时都将刷新“已发布”表格
+

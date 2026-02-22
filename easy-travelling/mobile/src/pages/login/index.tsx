@@ -33,25 +33,30 @@ const LoginPage = () => {
    * 请求发送短信验证码
    */
   const handleGetCode = async () => {
-    if (phone && phone.length === 11) {
-      try {
-        await post('/sms/send', { phone })
-        setCountdown(60)
-        const timer = setInterval(() => {
-          setCountdown(prev => {
-            if (prev <= 1) {
-              clearInterval(timer)
-              return 0
-            }
-            return prev - 1
-          })
-        }, 1000)
-        Toast.show('验证码已发送')
-      } catch (e: any) {
-        // 错误通常由 request.ts 拦截器统一处理
-      }
-    } else {
+    console.log('handleGetCode clicked, phone:', phone);
+    if (!phone || phone.length !== 11) {
       Toast.show('请输入正确的手机号')
+      return
+    }
+
+    if (countdown > 0) return
+
+    try {
+      Toast.show({ content: '正在请求验证码...', icon: 'loading' })
+      await post('/sms/send', { phone })
+      setCountdown(60)
+      const timer = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      Toast.show('验证码已发送')
+    } catch (e: any) {
+      // 错误通常由 request.ts 拦截器统一处理
     }
   }
 
@@ -183,7 +188,10 @@ const LoginPage = () => {
               className="custom-input"
               placeholder="请输入您的手机号码"
               value={phone}
-              onChange={(val) => setPhone(val)}
+              onChange={(val) => {
+                console.log('Phone input:', val)
+                setPhone(val)
+              }}
               type="number"
               maxLength={11}
             />
@@ -204,9 +212,11 @@ const LoginPage = () => {
                 type="number"
                 maxLength={6}
               />
+              {/* 修复 z-index 问题，确保按钮可点击 */}
               <View 
                 className={`code-btn ${(!phone || countdown > 0) ? 'disabled' : ''}`}
                 onClick={handleGetCode}
+                style={{ position: 'relative', zIndex: 10 }}
               >
                 {countdown > 0 ? `${countdown}s` : '获取验证码'}
               </View>

@@ -5,7 +5,6 @@ import { create } from 'zustand'
  */
 interface UserInfo {
   id: string
-  nickname: string
   avatar?: string
   phone?: string
   level?: string

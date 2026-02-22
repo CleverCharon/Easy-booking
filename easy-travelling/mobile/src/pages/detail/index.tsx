@@ -89,6 +89,7 @@ const App: React.FC = () => {
         Toast.show('收藏成功');
       }
     } catch (e) {
+      console.error('Favorite operation failed:', e);
       Toast.show('操作失败');
     }
   };

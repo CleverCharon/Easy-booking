@@ -1,0 +1,56 @@
+/** 国家/地区区号及国旗（与 src/img/country 下文件名对应） */
+export interface CountryCodeItem {
+  code: string
+  name: string
+  flagFile: string
+}
+
+export const countryCodes: CountryCodeItem[] = [
+  { code: '+86', name: '中国', flagFile: 'China.png' },
+  { code: '+852', name: '中国香港', flagFile: 'Hong_Kong.png' },
+  { code: '+853', name: '中国澳门', flagFile: 'Macau.png' },
+  { code: '+81', name: '日本', flagFile: 'Japan.png' },
+  { code: '+82', name: '韩国', flagFile: 'South_Korea.png' },
+  { code: '+1', name: '美国/加拿大', flagFile: 'United_States.png' },
+  { code: '+44', name: '英国', flagFile: 'United_Kingdom.png' },
+  { code: '+61', name: '澳大利亚', flagFile: 'Australia.png' },
+  { code: '+64', name: '新西兰', flagFile: 'New_Zealand.png' },
+  { code: '+65', name: '新加坡', flagFile: 'Singapore.png' },
+  { code: '+60', name: '马来西亚', flagFile: 'Malaysia.png' },
+  { code: '+66', name: '泰国', flagFile: 'Thailand.png' },
+  { code: '+84', name: '越南', flagFile: 'Laos.png' }, // 无越南旗，暂用 Laos
+  { code: '+856', name: '老挝', flagFile: 'Laos.png' },
+  { code: '+91', name: '印度', flagFile: 'India.png' },
+  { code: '+62', name: '印度尼西亚', flagFile: 'Malaysia.png' },
+  { code: '+63', name: '菲律宾', flagFile: 'Malaysia.png' },
+  { code: '+7', name: '俄罗斯', flagFile: 'Russia.png' },
+  { code: '+49', name: '德国', flagFile: 'Germany.png' },
+  { code: '+33', name: '法国', flagFile: 'United_Kingdom.png' },
+  { code: '+39', name: '意大利', flagFile: 'Switzerland.png' },
+  { code: '+34', name: '西班牙', flagFile: 'Spain.png' },
+  { code: '+41', name: '瑞士', flagFile: 'Switzerland.png' },
+  { code: '+31', name: '荷兰', flagFile: 'United_Kingdom.png' },
+  { code: '+32', name: '比利时', flagFile: 'United_Kingdom.png' },
+  { code: '+43', name: '奥地利', flagFile: 'Germany.png' },
+  { code: '+46', name: '瑞典', flagFile: 'Sweden.png' },
+  { code: '+47', name: '挪威', flagFile: 'Norway.png' },
+  { code: '+45', name: '丹麦', flagFile: 'Denmark.png' },
+  { code: '+358', name: '芬兰', flagFile: 'Finland.png' },
+  { code: '+353', name: '爱尔兰', flagFile: 'Ireland.png' },
+  { code: '+48', name: '波兰', flagFile: 'Poland.png' },
+  { code: '+90', name: '土耳其', flagFile: 'Turkey.png' },
+  { code: '+20', name: '埃及', flagFile: 'Egypt.png' },
+  { code: '+27', name: '南非', flagFile: 'South_Africa.png' },
+  { code: '+52', name: '墨西哥', flagFile: 'Mexico.png' },
+  { code: '+55', name: '巴西', flagFile: 'United_States.png' },
+  { code: '+976', name: '蒙古', flagFile: 'Mongolia.png' },
+  { code: '+850', name: '朝鲜', flagFile: 'North_Korea.png' },
+  { code: '+98', name: '伊朗', flagFile: 'Iran.png' },
+  { code: '+962', name: '约旦', flagFile: 'Jordan.png' },
+  { code: '+972', name: '以色列', flagFile: 'Palestine.png' },
+  { code: '+30', name: '希腊', flagFile: 'Greece.png' },
+  { code: '+354', name: '冰岛', flagFile: 'Iceland.png' },
+  { code: '+249', name: '苏丹', flagFile: 'Sudan.png' },
+  { code: '+971', name: '阿联酋', flagFile: 'Turkey.png' },
+  { code: '+966', name: '沙特', flagFile: 'Turkey.png' },
+]

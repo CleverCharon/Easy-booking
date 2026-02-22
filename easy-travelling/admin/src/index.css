@@ -1,3 +1,88 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 登录页 Ant Design 组件微调（Tabs、输入框圆角） */
+.login-tabs .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+.login-tabs .ant-tabs-nav::before {
+  border-bottom-color: #f0f0f0;
+}
+.login-tabs .ant-tabs-tab {
+  padding: 0 0 12px;
+  margin-right: 24px;
+  font-size: 16px;
+}
+.login-tabs .ant-tabs-ink-bar {
+  background: linear-gradient(90deg, #32bcef, #2c4fa3);
+  height: 3px;
+  border-radius: 2px;
+}
+.login-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #2c4fa3;
+  font-weight: 600;
+}
+.input-rounded.ant-input-affix-wrapper,
+.input-rounded.ant-input,
+.input-rounded .ant-select-selector {
+  border-radius: 10px !important;
+}
+
+/* 全局 Toast 美化（react-hot-toast） */
+[data-react-hot-toast-list] {
+  z-index: 9999;
+}
+[data-react-hot-toast-list] > div {
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+  font-size: 15px !important;
+}
+.admin-toast {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+}
+[data-react-hot-toast-list] [data-type="success"] {
+  border-left: 4px solid #32bcef !important;
+}
+[data-react-hot-toast-list] [data-type="error"] {
+  border-left: 4px solid #ef4444 !important;
+}
+
+/* 酒店列表表格美化 */
+.hotel-table .ant-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.hotel-table .ant-table-thead > tr > th {
+  background: linear-gradient(135deg, rgba(50,188,239,0.08) 0%, rgba(44,79,163,0.08) 100%) !important;
+  color: #1f2937;
+  font-weight: 600;
+}
+.hotel-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f0f0f0;
+}
+.hotel-table .ant-table-tbody > tr:hover > td {
+  background: rgba(50,188,239,0.04) !important;
+}
+.hotel-table .ant-pagination-item-active {
+  border-color: #2c4fa3 !important;
+  background: linear-gradient(135deg, #32bcef 0%, #2c4fa3 100%) !important;
+}
+.hotel-table .ant-pagination-item-active a {
+  color: #fff !important;
+}
+
+/* 管理员下线/拒绝原因弹窗 */
+.admin-reason-modal.ant-modal .ant-modal-content {
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+.admin-reason-modal.ant-modal .ant-modal-header {
+  border-radius: 12px 12px 0 0;
+}
+.admin-reason-modal.ant-modal .ant-modal-title {
+  font-weight: 600;
+  color: #1f2937;
+}

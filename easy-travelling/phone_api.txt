@@ -1,0 +1,78 @@
+一、需要向速通互联获取 / 确认的信息
+拿到文档后，请至少确认这些字段（名字以官方为准）：
+接口地址：BASE_URL（如 https://sms.sutong.com/api/send）
+鉴权信息：
+APP_ID / APP_KEY 或 ACCESS_KEY / SECRET
+是否需要 签名串（如 sign=md5(appId+phone+timestamp+secret) 之类）
+短信内容方式：
+固定模板 + 参数（推荐）：templateId + params { code: '123456' }
+还是直接传完整短信内容 content（注意变量占位格式）
+请求/响应格式：
+一般是 POST JSON 或 application/x-www-form-urlencoded
+成功/失败标志字段（例如：code === 0 代表成功）
+建议你把这些配置写到 .env 中，例如：
+# 短信相关配置（示例名称，按速通互联文档调整）SMS_BASE_URL=https://xxx.sutong.com/api/sms/sendSMS_APP_ID=xxxxSMS_APP_SECRET=yyyySMS_SIGN=【易宿】SMS_TEMPLATE_ID=123456
+二、后端当前结构（你已经有的）
+位置：server/index.js
+发送验证码接口（占位）：POST /api/auth/sms/send
+现在做的事：
+生成 6 位数字 code，存入 smsStore（内存 Map），5 分钟过期。
+把验证码写到控制台 console.log，不调用真实短信服务。
+注册接口：POST /api/auth/register
+现在会：
+从 req.body 里拿到 phone 和 smsCode。
+有一个开发方便用的万能验证码 6666：
+填 6666 就跳过 smsStore 校验。
+其他验证码会去 smsStore 里比对 code 和过期时间。
+三、拿到速通互联 API 后需要改的地方
+步骤 1：在 .env 中填好短信配置
+按实际字段名添加，例如：
+SMS_BASE_URL=https://sms.sutong.com/api/sendSMS_APP_ID=你的appIdSMS_APP_SECRET=你的secretSMS_SIGN=【易宿】SMS_TEMPLATE_ID=你的模板ID
+然后在 server/index.js 顶部读出来：
+const SMS_BASE_URL = process.env.SMS_BASE_URL;const SMS_APP_ID = process.env.SMS_APP_ID;const SMS_APP_SECRET = process.env.SMS_APP_SECRET;const SMS_SIGN = process.env.SMS_SIGN;const SMS_TEMPLATE_ID = process.env.SMS_TEMPLATE_ID;
+> 具体命名与签名算法，按照速通互联文档调整。
+步骤 2：在 /api/auth/sms/send 中真正调用短信 API
+现在的伪代码：
+app.post('/api/auth/sms/send', (req, res) => {  const { phone } = req.body || {};  // 校验 phone，生成 code，存 smsStore，再 console.log 一下});
+接入速通互联后要做的：
+保留 生成验证码 + 存 smsStore 的逻辑（因为注册时还要校验）。
+在生成好 code 之后，调用速通互联 REST API：
+大致结构（示例，按文档改）：
+   const payload = {     appId: SMS_APP_ID,     sign: SMS_SIGN,     templateId: SMS_TEMPLATE_ID,     phone,     params: { code },      // 或者 ['123456'] 之类，看对方要求   };   const resp = await fetch(SMS_BASE_URL, {     method: 'POST',     headers: { 'Content-Type': 'application/json' },     body: JSON.stringify(payload),   });   const data = await resp.json();   if (data.code !== 0) {     // 短信发送失败：可以删掉 smsStore 中这条记录     smsStore.delete(phone);     return res.status(500).json({ success: false, message: '短信发送失败，请稍后重试' });   }
+成功时仍然返回当前结构：
+   res.json({ success: true, message: '验证码已发送' });
+> 如果速通互联要求签名/时间戳等，加在 payload 或请求头里即可。
+步骤 3：在注册接口里去掉万能验证码 6666
+目前注册接口中有这段：
+// 开发阶段提供通用验证码“6666”，后续接入短信服务后可删除该分支if (smsStr !== '6666') {  const rec = smsStore.get(phoneStr);  if (!rec) return res.status(400).json({ success: false, message: '请先获取验证码' });  if (Date.now() > rec.expireAt) {    smsStore.delete(phoneStr);    return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });  }  if (rec.code !== smsStr) {    return res.status(400).json({ success: false, message: '验证码错误' });  }}
+接入正式短信后，需要改成：
+// 正常校验短信验证码const rec = smsStore.get(phoneStr);if (!rec) return res.status(400).json({ success: false, message: '请先获取验证码' });if (Date.now() > rec.expireAt) {  smsStore.delete(phoneStr);  return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });}if (rec.code !== smsStr) {  return res.status(400).json({ success: false, message: '验证码错误' });}
+也就是：
+删掉 6666 的特殊分支；
+统一走 smsStore 中的验证码校验逻辑。
+> 若你后续把验证码存到 MySQL/Redis，而不是内存 Map，只需在这里改成查库/查 Redis 即可。
+四、接入后的自测流程（Checklist）
+环境变量：
+.env 中 SMS_* 配置填写正确，并已重启服务。
+发送验证码：
+在前端注册页填写手机号 → 点击「发送验证码」。
+速通互联侧应收到请求并返回成功。
+手机能收到一条包含 6 位 code 的短信。
+注册校验：
+把短信里的 code 填到前端验证码输入框，提交注册。
+后端从 smsStore（或 DB/Redis）中找到对应 phone 的记录，校验通过 → 正常注册成功。
+使用错误或过期验证码时，分别能看到“验证码错误/已过期”的提示。
+五、上线前需要移除 / 调整的开发辅助逻辑
+当你完成速通互联接入，并确认线上短信稳定可用后，建议：
+删除万能验证码 6666 分支（如上第三步），避免被恶意利用。
+考虑把 smsStore 从 内存 改为：
+短期可用 MySQL 表 sms_codes；
+正式环境推荐 Redis（更适合高并发与过期管理）。
+根据业务需要调整：
+单手机号发送频率限制（如每分钟最多 1 次、每天最多 10 次等）；
+单 IP 限制。
+你后面只要拿到速通互联的 接口地址 + 参数说明，按这个文档：
+在 .env 里补配置；
+改 /api/auth/sms/send 把验证码真正发出去；
+去掉注册接口里的 6666 特殊逻辑；
+就可以从当前的“占位实现”平滑切换到正式短信校验，而不用再重新设计流程。

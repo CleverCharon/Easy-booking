@@ -1,6 +1,6 @@
 import Taro from '@tarojs/taro'
 
-const BASE_URL = 'http://localhost:3000/api'
+const BASE_URL = 'http://192.168.2.103:3000/api'
 
 /**
  * 标准 HTTP 请求封装函数
@@ -11,9 +11,11 @@ const BASE_URL = 'http://localhost:3000/api'
  * @returns {Promise<any>} 响应数据
  */
 export const request = async (url: string, options: Taro.request.Option = {}) => {
+  const fullUrl = `${BASE_URL}${url}`;
+  console.log('Initiating request:', fullUrl, options);
   try {
     const response = await Taro.request({
-      url: `${BASE_URL}${url}`,
+      url: fullUrl,
       ...options,
       header: {
         'Content-Type': 'application/json',
