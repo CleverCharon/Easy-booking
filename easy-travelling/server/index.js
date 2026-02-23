@@ -212,8 +212,19 @@ function adminMiddleware(req, res, next) {
  */
 app.post('/api/auth/sms/send', async (req, res) => {
   console.log('收到发送短信请求:', req.body);
-  const { phone } = req.body;
+  let { phone } = req.body;
   if (!phone) return res.status(400).send({ message: '手机号不能为空' });
+  
+  // 清洗手机号：
+  // 1. 如果是 +86 开头的国内号码，去掉 +86
+  if (phone.startsWith('+86') && phone.length === 14) {
+      phone = phone.slice(3);
+  }
+  // 2. 如果包含其他非数字字符（如空格、横线），一并去除
+  phone = phone.replace(/\D/g, '');
+  
+  // 3. 再次检查长度，如果不是11位（国内），可能需要根据业务调整
+  // 这里暂时假设都是国内号码
 
   // 频率限制
   const record = smsStore.get(phone);
@@ -249,12 +260,11 @@ app.post('/api/auth/sms/send', async (req, res) => {
       res.send({ success: true, message: '验证码发送成功' });
     } else {
       console.error('Aliyun SMS Error:', resp.body);
-      // 开发环境 fallback: 如果发送失败（如签名未审核），也允许继续（可选）
+      // 如果发送失败，返回真实错误信息
       res.status(400).send({ message: '短信发送失败: ' + resp.body.message });
     }
   } catch (error) {
     console.error('Aliyun SMS Exception:', error);
-    // 开发模式下，如果配置错误，可以考虑返回模拟成功方便调试，但为了严谨这里返回错误
     res.status(400).send({ message: '短信发送异常: ' + (error.data?.Recommend || error.message) });
   }
 });
@@ -270,9 +280,15 @@ app.post('/api/sms/send', (req, res) => {
  */
 app.post('/api/auth/register', (req, res) => {
   const { username, password, role, phone, smsCode, roleCode } = req.body;
-  const phoneStr = phone ? String(phone).trim() : '';
+  let phoneStr = phone ? String(phone).trim() : '';
   const smsStr = smsCode ? String(smsCode).trim() : '';
   const roleCodeStr = roleCode ? String(roleCode).trim().toUpperCase() : '';
+
+  // 清洗手机号：保持与发送短信时一致
+  if (phoneStr.startsWith('+86') && phoneStr.length === 14) {
+      phoneStr = phoneStr.slice(3);
+  }
+  phoneStr = phoneStr.replace(/\D/g, '');
 
   if (!username || !password || !role || !phoneStr || !smsStr) {
     return res.status(400).json({ success: false, message: '请填写完整信息' });

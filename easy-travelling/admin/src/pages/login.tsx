@@ -62,7 +62,7 @@ export default function LoginPage() {
     const phone = `${phoneCode}${phoneNumber}`
     setSmsSending(true)
     try {
-      const res = await apiSendSmsCode({ phone })
+      const res = await apiSendSmsCode(phone)
       toast.success(res.message || '验证码已发送')
       setSmsCountdown(60)
     } catch (e) {
@@ -305,18 +305,20 @@ export default function LoginPage() {
                         />
                       </Form.Item>
 
-                      <Form.Item
-                        label="手机号"
-                        required
-                        tooltip="手机号会写入系统用户表，用于短信验证"
-                      >
-                        <PhoneFields
-                          codeName="phoneCode"
-                          numberName="phoneNumber"
-                          numberPlaceholder="输入号码"
-                          numberRules={[{ required: true, message: '请输入手机号' }]}
-                        />
-                      </Form.Item>
+                      <div className="ant-form-item mb-5">
+                        <div className="ant-form-item-label">
+                          <label className="ant-form-item-required" title="手机号">手机号</label>
+                        </div>
+                        <div className="ant-form-item-control">
+                           <PhoneFields
+                             codeName="phoneCode"
+                             numberName="phoneNumber"
+                             numberPlaceholder="输入号码"
+                             numberRules={[{ required: true, message: '请输入手机号' }]}
+                           />
+                           <div className="text-gray-400 text-xs mt-1">手机号会写入系统用户表，用于短信验证</div>
+                        </div>
+                      </div>
 
                       <Form.Item label="手机号验证码" required>
                         <Space.Compact className="w-full" size="middle">
