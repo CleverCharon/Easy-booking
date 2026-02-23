@@ -1,6 +1,6 @@
 import Taro from '@tarojs/taro'
 
-const BASE_URL = 'http://192.168.2.103:3000/api'
+const BASE_URL = 'http://localhost:3000/api'
 
 /**
  * 标准 HTTP 请求封装函数

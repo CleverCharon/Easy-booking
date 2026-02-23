@@ -64,6 +64,7 @@ const LoginPage = () => {
    * 处理登录提交逻辑
    */
   const handleLogin = async () => {
+    console.log('Login clicked. Agreed:', agreed, 'Phone:', phone, 'Code:', code, 'Method:', loginMethod)
     if (!agreed) {
       Toast.show('请先阅读并同意协议')
       return
@@ -82,7 +83,7 @@ const LoginPage = () => {
     }
 
     try {
-      const res = await post('/user/login', { phone, code, password, method: loginMethod })
+      const res = await post('/auth/login', { phone, code, password, method: loginMethod })
       
       // 如果后端返回新用户标识，则重定向至账号设置页
       if (res.is_new) {
@@ -94,7 +95,13 @@ const LoginPage = () => {
       }
 
       if (res && res.id) {
-        login(res)
+        // 登录成功，将用户信息存入 store
+        // 后端返回结构为 { success, token, id, user: { ... } }
+        // store 需要的是 { id, username, avatar, ... }
+        // 因此优先使用 res.user，如果不存在则使用 res（兼容旧接口）
+        const userInfo = res.user || res;
+        login(userInfo)
+        
         Toast.show({ content: '登录成功', icon: 'success' })
         setTimeout(() => {
           Taro.navigateBack()
@@ -234,7 +241,11 @@ const LoginPage = () => {
             </View>
           )}
 
-          <Button className="submit-btn" onClick={handleLogin}>
+          <Button 
+            className="submit-btn" 
+            onClick={handleLogin}
+            style={{ pointerEvents: 'auto', zIndex: 10 }}
+          >
             {loginMethod === 'code' ? '登录 / 注册' : '登录'}
           </Button>
 
@@ -261,13 +272,17 @@ const LoginPage = () => {
         </View>
 
         <View className="agreement">
-          <View className="checkbox" onClick={() => setAgreed(!agreed)}>
-            {agreed ? <Check size={10} color="#33C7F7" /> : null}
+            <View 
+              className="checkbox" 
+              onClick={() => setAgreed(!agreed)}
+              style={{ pointerEvents: 'auto', zIndex: 10 }}
+            >
+              {agreed ? <Check size={10} color="#33C7F7" /> : null}
+            </View>
+            <Text className="text">
+              我已阅读并同意 <Text className="link">《用户协议》</Text> <Text className="link">《隐私条款》</Text>
+            </Text>
           </View>
-          <Text className="text">
-            我已阅读并同意 <Text className="link">《用户协议》</Text> <Text className="link">《隐私条款》</Text>
-          </Text>
-        </View>
       </View>
     </View>
   )

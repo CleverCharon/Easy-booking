@@ -72,6 +72,7 @@ const App: React.FC = () => {
    * 切换当前酒店的收藏状态
    */
   const toggleFavorite = async () => {
+    console.log('Toggle Favorite Clicked');
     if (!userInfo?.id) {
       Toast.show('请先登录');
       setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 1000);
@@ -179,10 +180,12 @@ const App: React.FC = () => {
             ? 'bg-[#2C439B]/95 backdrop-blur-md shadow-md text-white' 
             : 'bg-transparent text-white'
         }`}
+        style={{ pointerEvents: 'none' }} // 让导航栏背景不拦截点击，但允许子元素点击
       >
         <View 
           className="flex items-center justify-center w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm active:scale-95 transition-transform" 
           onClick={() => Taro.navigateBack()}
+          style={{ pointerEvents: 'auto' }}
         >
           <ArrowLeftOutlined className="text-white" />
         </View>
@@ -191,13 +194,14 @@ const App: React.FC = () => {
           {hotel?.name}
         </View>
         
-        <View className="flex space-x-3">
+        <View className="flex space-x-3" style={{ pointerEvents: 'auto' }}>
           <View className="flex items-center justify-center w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm active:scale-95 transition-transform">
             <ShareAltOutlined className="text-white" />
           </View>
           <View 
             className="flex items-center justify-center w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm active:scale-95 transition-transform"
             onClick={toggleFavorite}
+            style={{ cursor: 'pointer' }}
           >
             {isFavorite ? (
               <HeartFilled className="text-[#DFA0C8]" />
@@ -251,6 +255,16 @@ const App: React.FC = () => {
           <View className="flex items-start justify-between mb-2">
             <Text className="text-2xl font-bold text-[#25255F] leading-tight flex-1 mr-2">{hotel?.name}</Text>
             <View className="flex flex-col items-end space-y-1">
+               <View 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   toggleFavorite();
+                 }} 
+                 className={`px-3 py-1 rounded-full text-xs font-bold mb-1 flex items-center ${isFavorite ? 'bg-pink-100 text-pink-500' : 'bg-gray-100 text-gray-500'}`}
+               >
+                 {isFavorite ? <HeartFilled className="mr-1" /> : <HeartOutlined className="mr-1" />}
+                 {isFavorite ? '已收藏' : '收藏'}
+               </View>
                <Text className="bg-[#33C7F7]/10 text-[#2C439B] text-[10px] px-2 py-0.5 rounded-full font-medium">{hotel?.brand}</Text>
             </View>
           </View>

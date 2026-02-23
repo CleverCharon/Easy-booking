@@ -4,11 +4,14 @@ import Taro, { useRouter } from '@tarojs/taro'
 import { Button, Input, Cell, Toast } from '@nutui/nutui-react-taro'
 import { ArrowLeft } from '@nutui/icons-react-taro'
 import { post, get } from '../../../utils/request'
+import { useUserStore } from '../../../store/user'
 import './index.scss'
 
 const CreateOrder = () => {
   const router = useRouter()
   const { hotelId, roomId } = router.params
+  const { userInfo } = useUserStore()
+
   
   const [hotelName, setHotelName] = useState('')
   const [roomName, setRoomName] = useState('')
@@ -51,6 +54,7 @@ const CreateOrder = () => {
 
     try {
       await post('/bookings/create', {
+        user_id: userInfo?.id,
         user_name: guestName,
         user_phone: guestPhone,
         user_id_card: guestIdCard,

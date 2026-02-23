@@ -5,7 +5,8 @@ import { Search, Heart, HeartFill, StarFill, Location, Close } from '@nutui/icon
 import { Button, Skeleton, Tag, Popup, Checkbox, Rate } from '@nutui/nutui-react-taro'
 import { useSearchStore } from '../../store/search'
 import { useFavoriteStore, Hotel } from '../../store/favorite'
-import { get } from '../../utils/request'
+import { useUserStore } from '../../store/user'
+import { get, post } from '../../utils/request'
 import './index.scss'
 
 const ListPage = () => {
@@ -13,7 +14,8 @@ const ListPage = () => {
     city, startDate, endDate, keyword, setKeyword,
     minPrice, maxPrice, starLevels, setPriceRange, setStarLevels
   } = useSearchStore()
-  const { isFavorite, addFavorite, removeFavorite } = useFavoriteStore()
+  const { isFavorite, addFavorite, removeFavorite, setFavorites } = useFavoriteStore()
+  const { userInfo } = useUserStore()
   const [list, setList] = useState<Hotel[]>([])
   const [filteredList, setFilteredList] = useState<Hotel[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,6 +45,28 @@ const ListPage = () => {
           star: Number(h.star_level) || 3
         }))
         setList(hotelList)
+
+        // Sync favorites if logged in
+        if (userInfo?.id) {
+          try {
+            const favRes = await get(`/favorites/list?user_id=${userInfo.id}`)
+            if (Array.isArray(favRes)) {
+              const favHotels = favRes.map((h: any) => ({
+                id: String(h.id),
+                name: h.name,
+                image: h.image_url || 'https://via.placeholder.com/300',
+                score: Number(h.score),
+                price: Number(h.price),
+                tags: h.tags ? (Array.isArray(h.tags) ? h.tags : h.tags.split(',')) : [],
+                location: h.address,
+                star: Number(h.star_level)
+              }))
+              setFavorites(favHotels)
+            }
+          } catch (err) {
+            console.error('Fetch favorites failed', err)
+          }
+        }
       } catch (e) {
         console.error(e)
       } finally {
@@ -50,7 +74,7 @@ const ListPage = () => {
       }
     }
     fetchHotels()
-  }, [city])
+  }, [city, userInfo?.id])
 
   // Filter Logic
   useEffect(() => {
@@ -130,12 +154,24 @@ const ListPage = () => {
 
   const starOptions = ['二星/经济', '三星/舒适', '四星/高档', '五星/豪华']
 
-  const toggleFav = (e: any, hotel: Hotel) => {
+  const toggleFav = async (e: any, hotel: Hotel) => {
     e.stopPropagation()
     if (isFavorite(hotel.id)) {
       removeFavorite(hotel.id)
+      if (userInfo?.id) {
+        await post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotel.id }).catch(err => {
+          console.error(err)
+          addFavorite(hotel) // Revert
+        })
+      }
     } else {
       addFavorite(hotel)
+      if (userInfo?.id) {
+        await post('/favorites/add', { user_id: userInfo.id, hotel_id: hotel.id }).catch(err => {
+          console.error(err)
+          removeFavorite(hotel.id) // Revert
+        })
+      }
     }
   }
 

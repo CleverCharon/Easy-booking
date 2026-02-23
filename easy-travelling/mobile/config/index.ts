@@ -22,6 +22,7 @@ export default defineConfig<'vite'>(async (merge, { command, mode }) => {
     },
     copy: {
       patterns: [
+        { from: 'src/assets', to: 'dist/assets' }
       ],
       options: {
       }

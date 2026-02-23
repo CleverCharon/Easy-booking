@@ -14,6 +14,7 @@ export interface Hotel {
 interface FavoriteState {
   favorites: Hotel[]
   history: Hotel[]
+  setFavorites: (hotels: Hotel[]) => void
   addFavorite: (hotel: Hotel) => void
   removeFavorite: (hotelId: string) => void
   isFavorite: (hotelId: string) => boolean
@@ -25,7 +26,8 @@ interface FavoriteState {
 export const useFavoriteStore = create<FavoriteState>((set, get) => ({
   favorites: [],
   history: [],
-  addFavorite: (hotel) => {
+  setFavorites: (hotels: Hotel[]) => set({ favorites: hotels }),
+  addFavorite: (hotel: Hotel) => {
     const { favorites } = get()
     if (!favorites.find(h => h.id === hotel.id)) {
       set({ favorites: [...favorites, hotel] })

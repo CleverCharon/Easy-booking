@@ -63,6 +63,13 @@
     justify-content: center;
     padding: 0 24px;
     padding-bottom: 40px;
+    pointer-events: none; /* 让事件穿透 */
+
+    .title-sec,
+    .form-card,
+    .agreement {
+      pointer-events: auto; /* 恢复子元素的点击事件 */
+    }
 
     .title-sec {
       display: flex;
