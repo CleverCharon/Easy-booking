@@ -20,14 +20,11 @@ const deg2rad = (deg: number) => {
 
 export const getLocation = async (cities: any[]) => {
   try {
-    console.log('Starting location service...')
-    
     // 1. 获取用户当前坐标
     const res = await new Promise<Taro.getLocation.SuccessCallbackResult>((resolve, reject) => {
       Taro.getLocation({
         type: 'wgs84',
         success: (res) => {
-          console.log('Taro.getLocation success:', res)
           resolve(res)
         },
         fail: (err) => {
@@ -38,16 +35,14 @@ export const getLocation = async (cities: any[]) => {
     })
     
     const { latitude, longitude } = res
-    console.log('User Location:', latitude, longitude)
     
     // 2. 遍历城市列表，找到距离最近的城市
-    let nearestCity = null
+    let nearestCity: any = null
     let minDistance = Infinity
     
     cities.forEach(city => {
       if (city.lat && city.lng) {
         const distance = getDistance(latitude, longitude, Number(city.lat), Number(city.lng))
-        console.log(`Distance to ${city.name}: ${distance}km`)
         if (distance < minDistance) {
           minDistance = distance
           nearestCity = city
@@ -57,7 +52,6 @@ export const getLocation = async (cities: any[]) => {
     
     // 暂时放宽限制，总是返回最近的城市，方便测试
     const result = nearestCity ? nearestCity.name : null
-    console.log('Nearest city found:', result)
     return result
     
   } catch (error) {

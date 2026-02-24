@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { View, Text, Image } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
-import { Button, Input, Toast } from '@nutui/nutui-react-taro'
-import { ArrowLeft, Check, Eye, EyeInvisible } from '@nutui/icons-react-taro' // 增加 Eye 图标用于密码可见性切换（可选，先保留基础）
+import { Button, Input } from '@nutui/nutui-react-taro'
+import { ArrowLeft } from '@nutui/icons-react-taro'
 import { useUserStore } from '../../../store/user'
 import { post } from '../../../utils/request'
 import './index.scss'
@@ -25,15 +25,15 @@ const SetupAccount = () => {
    */
   const handleSetup = async () => {
     if (!username) {
-      Toast.show('请输入账号')
+      Taro.showToast({ title: '请输入账号', icon: 'none' })
       return
     }
     if (!password) {
-      Toast.show('请输入密码')
+      Taro.showToast({ title: '请输入密码', icon: 'none' })
       return
     }
     if (password !== confirmPwd) {
-      Toast.show('两次密码不一致')
+      Taro.showToast({ title: '两次密码不一致', icon: 'none' })
       return
     }
 
@@ -45,7 +45,7 @@ const SetupAccount = () => {
       })
 
       if (res.success) {
-        Toast.show({ content: '设置成功', icon: 'success' })
+        Taro.showToast({ title: '设置成功', icon: 'success' })
         
         // 更新全局用户状态
         login(res.user)
@@ -59,14 +59,14 @@ const SetupAccount = () => {
       } else {
         // 如果未被拦截器捕获，则作为兜底处理
         if (!res.message || (!res.message.includes('账号') && !res.message.includes('密码'))) {
-          Toast.show(res.message || '设置失败')
+          Taro.showToast({ title: res.message || '设置失败', icon: 'none' })
         }
       }
     } catch (e: any) {
       console.error(e)
       // 避免重复提示
       if (!e.message || (!e.message.includes('账号') && !e.message.includes('密码'))) {
-        Toast.show(e.message || '系统异常')
+        Taro.showToast({ title: e.message || '系统异常', icon: 'none' })
       }
     }
   }

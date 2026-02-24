@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { View, Text, Image, ScrollView } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
-import { Button, Toast } from '@nutui/nutui-react-taro'
+import { Button } from '@nutui/nutui-react-taro'
 import { HeartFill, StarFill, Close, ArrowDown, Check } from '@nutui/icons-react-taro'
 import { useUserStore } from '../../store/user'
 import { get, post } from '../../utils/request'
@@ -29,7 +29,7 @@ const FavoritePage = () => {
 
   useDidShow(() => {
     if (!userInfo?.id) {
-      Toast.show('请先登录')
+      Taro.showToast({ title: '请先登录', icon: 'none' })
       // Optional: Redirect to login
       // Taro.navigateTo({ url: '/pages/login/index' })
     } else {
@@ -67,7 +67,7 @@ const FavoritePage = () => {
           fetchData() // Refresh
           setSelectedItems([])
           setIsManaging(false)
-          Toast.show('已取消收藏')
+          Taro.showToast({ title: '已取消收藏', icon: 'none' })
         }
       }
     })

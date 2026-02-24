@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Taro, { useRouter } from '@tarojs/taro';
 import { View, Text, Image } from '@tarojs/components';
-import { Button, Calendar, Rate, Tag, Toast } from '@nutui/nutui-react-taro';
+import { Button, Calendar, Rate, Tag } from '@nutui/nutui-react-taro';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination, Navigation } from 'swiper/modules';
 import {
@@ -40,8 +40,8 @@ const App: React.FC = () => {
   const [checkInDate, setCheckInDate] = useState('10月25日');
   const [checkOutDate, setCheckOutDate] = useState('10月26日');
   const [nights, setNights] = useState(1);
-  const [guests, setGuests] = useState(2);
-  const [rooms, setRooms] = useState(1);
+  const [guests] = useState(2);
+  const [rooms] = useState(1);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -62,7 +62,7 @@ const App: React.FC = () => {
          }
        } catch(e) {
          console.error(e);
-         Toast.show({ content: '获取详情失败', icon: 'fail' });
+         Taro.showToast({ title: '获取详情失败', icon: 'none' });
        }
     }
     fetchDetail();
@@ -72,9 +72,8 @@ const App: React.FC = () => {
    * 切换当前酒店的收藏状态
    */
   const toggleFavorite = async () => {
-    console.log('Toggle Favorite Clicked');
     if (!userInfo?.id) {
-      Toast.show('请先登录');
+      Taro.showToast({ title: '请先登录', icon: 'none' });
       setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 1000);
       return;
     }
@@ -83,36 +82,22 @@ const App: React.FC = () => {
       if (isFavorite) {
         await post('/favorites/remove', { user_id: userInfo.id, hotel_id: id });
         setIsFavorite(false);
-        Toast.show('已取消收藏');
+        Taro.showToast({ title: '已取消收藏', icon: 'none' });
       } else {
         await post('/favorites/add', { user_id: userInfo.id, hotel_id: id });
         setIsFavorite(true);
-        Toast.show('收藏成功');
+        Taro.showToast({ title: '收藏成功', icon: 'success' });
       }
     } catch (e) {
       console.error('Favorite operation failed:', e);
-      Toast.show('操作失败');
+      Taro.showToast({ title: '操作失败', icon: 'none' });
     }
   };
 
   /**
    * 处理预订操作
    */
-  const handleBook = () => {
-    if (!userInfo?.id) {
-      Toast.show('请先登录');
-      setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 1000);
-      return;
-    }
-
-    if (selectedRoom === null) {
-      Toast.show({ content: '请选择房型', icon: 'fail' });
-    } else {
-       Taro.navigateTo({
-          url: `/pages/order/create/index?hotelId=${id}&roomId=${selectedRoom}`
-       })
-    }
-  };
+  // const handleBook = () => { ... } // Removed unused function
 
   useEffect(() => {
     const handleScroll = () => {
@@ -153,22 +138,6 @@ const App: React.FC = () => {
       setNights(diffDays);
     }
     setShowCalendar(false);
-  };
-
-  const incrementGuests = () => {
-    if (guests < 6) setGuests(guests + 1);
-  };
-
-  const decrementGuests = () => {
-    if (guests > 1) setGuests(guests - 1);
-  };
-
-  const incrementRooms = () => {
-    if (rooms < 5) setRooms(rooms + 1);
-  };
-
-  const decrementRooms = () => {
-    if (rooms > 1) setRooms(rooms - 1);
   };
 
   return (
@@ -271,7 +240,7 @@ const App: React.FC = () => {
           
           <View className="flex items-center mb-3">
             <View className="flex mr-2">
-              <Rate readOnly value={hotel?.score || 5} size={12} activeColor="#33C7F7" />
+              <Rate readOnly value={hotel?.score || 5} />
             </View>
             <Text className="text-xs text-[#2C439B] font-medium bg-[#2C439B]/5 px-2 py-0.5 rounded">{hotel?.star_level}星级酒店</Text>
           </View>
@@ -360,7 +329,7 @@ const App: React.FC = () => {
                         key={idx} 
                         color={tag.includes('会员') || tag.includes('特价') ? '#DFA0C8' : '#33C7F7'}
                         background={tag.includes('会员') || tag.includes('特价') ? 'rgba(223, 160, 200, 0.1)' : 'rgba(51, 199, 247, 0.1)'}
-                        textColor={tag.includes('会员') || tag.includes('特价') ? '#DFA0C8' : '#2C439B'}
+                        style={{ color: tag.includes('会员') || tag.includes('特价') ? '#DFA0C8' : '#2C439B' }}
                         round
                       >
                         {tag}
@@ -431,12 +400,12 @@ const App: React.FC = () => {
             }}
             onClick={() => {
               if (!userInfo) {
-                Toast.show('请先登录');
+                Taro.showToast({ title: '请先登录', icon: 'none' });
                 setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 500);
                 return;
               }
               if (selectedRoom === null) {
-                Toast.show({ content: '请选择房型', icon: 'fail' });
+                Taro.showToast({ title: '请选择房型', icon: 'none' });
                 // Note: Scroll behavior might differ in Taro environments
               } else {
                  Taro.navigateTo({

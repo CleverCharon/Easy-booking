@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
-import { View, Text, Image, ScrollView } from '@tarojs/components'
+import { View, Text, ScrollView } from '@tarojs/components'
 import Taro, { usePageScroll } from '@tarojs/taro'
 import { Button } from '@nutui/nutui-react-taro'
 import { 
-  Order, Star, Service, Setting, Message, Location, 
-  User as UserIcon, ArrowRight, Check, Clock
+  Setting, 
+  User as UserIcon, ArrowRight, Order, Star
 } from '@nutui/icons-react-taro'
 import { useUserStore } from '../../store/user'
 import './index.scss'
@@ -39,31 +39,6 @@ const MyPage = () => {
   const menuItems = [
     { name: '酒店订单', icon: <Order />, path: '/pages/order/list/index' },
     { name: '我的收藏', icon: <Star />, path: '/pages/favorite/index', isTab: true },
-    { name: '发票报销', icon: <Order /> },
-    { name: '积分商城', icon: <Star /> },
-    { name: '每日签到', icon: <Check /> },
-    { name: '常用旅客', icon: <UserIcon /> },
-    { name: '地址管理', icon: <Location /> },
-    { name: '客服帮助', icon: <Service /> },
-  ]
-
-  const vouchers = [
-    { name: '优惠券', count: 5, icon: <Order size={18} color="#2C439B" /> },
-    { name: '升房券', count: 2, icon: <Star size={18} color="#2C439B" /> },
-    { name: '早餐券', count: 3, icon: <Check size={18} color="#2C439B" /> },
-    { name: '延时券', count: 1, icon: <Clock size={18} color="#2C439B" /> },
-  ]
-
-  const banners = [
-    { title: '降价自动退！买贵我就赔！', desc: '实时监控价格变动', bg: '#e6f7ff' },
-    { title: '周末特惠活动', desc: '预订享额外折扣', bg: '#fff0f6' },
-    { title: '亲子精选套餐', desc: '家庭出行优惠', bg: '#f0f9ff' },
-  ]
-
-  const settings = [
-    { name: '常见问题', icon: <Service color="#33C7F7" /> },
-    { name: '隐私安全', icon: <Check color="#33C7F7" /> },
-    { name: '关于易宿', icon: <Message color="#33C7F7" /> },
   ]
 
   const handleMenuClick = (item: any) => {
@@ -83,11 +58,6 @@ const MyPage = () => {
         className={`nav-bar ${scrollTop > 10 ? 'scrolled' : ''}`}
       >
         <Text className="title">我的</Text>
-        <View className="right-icons">
-          <Service className="icon" />
-          <Message className="icon" />
-          <Setting className="icon" />
-        </View>
       </View>
 
       <ScrollView scrollY className="content-scroll">
@@ -102,24 +72,6 @@ const MyPage = () => {
                   </View>
                   <View className="info">
                     <Text className="name">{userInfo?.username || '用户'}</Text>
-                    <View className="level-tag">
-                      <Text className="tag-txt">银卡会员</Text>
-                    </View>
-                  </View>
-                  <ArrowRight color="#2C439B" size={14} />
-                </View>
-                <View className="stats-row">
-                  <View className="stat-item">
-                    <Text className="num">1280</Text>
-                    <Text className="label">积分</Text>
-                  </View>
-                  <View className="stat-item">
-                    <Text className="num">5</Text>
-                    <Text className="label">优惠券</Text>
-                  </View>
-                  <View className="stat-item">
-                    <Text className="num">12</Text>
-                    <Text className="label">收藏</Text>
                   </View>
                 </View>
               </View>
@@ -158,7 +110,7 @@ const MyPage = () => {
             {menuItems.map((item, i) => (
               <View key={i} className="grid-item" onClick={() => handleMenuClick(item)}>
                 <View className="icon-box">
-                  {React.cloneElement(item.icon as any, { color: '#2C439B', size: 20 })}
+                  {React.cloneElement(item.icon as any, { color: '#2C439B', size: 24 })}
                 </View>
                 <Text className="name">{item.name}</Text>
               </View>
@@ -166,56 +118,9 @@ const MyPage = () => {
           </View>
         </View>
 
-        {/* Vouchers */}
-        <View className="vouchers-card">
-          <View className="head">
-            <Text className="tit">我的卡券包</Text>
-            <View className="more">
-              <Text>查看全部</Text>
-              <ArrowRight size={10} />
-            </View>
-          </View>
-          <View className="v-grid">
-            {vouchers.map((v, i) => (
-              <View key={i} className="v-item">
-                <View className="icon-bg">{v.icon}</View>
-                <Text className="count">{v.count}</Text>
-                <Text className="name">{v.name}</Text>
-              </View>
-            ))}
-          </View>
-          {!isLogin && (
-            <View className="login-tip">
-              <Button className="go-btn">去领券</Button>
-            </View>
-          )}
-        </View>
-
-        {/* Banners */}
-        <View className="banners-list">
-          {banners.map((b, i) => (
-            <View key={i} className="banner-item" style={{ background: b.bg }}>
-              <View>
-                <Text className="tit">{b.title}</Text>
-                <Text className="sub">{b.desc}</Text>
-              </View>
-              <Button className="view-btn">立即查看</Button>
-            </View>
-          ))}
-        </View>
-
         {/* Settings */}
-        <View className="settings-card">
-          {settings.map((s, i) => (
-            <View key={i} className="row">
-              <View className="left">
-                {s.icon}
-                <Text className="txt">{s.name}</Text>
-              </View>
-              <ArrowRight size={12} color="#ccc" />
-            </View>
-          ))}
-          {isLogin && (
+        {isLogin && (
+          <View className="settings-card">
             <View className="row" onClick={handleLogout}>
               <View className="left">
                 <Setting color="#33C7F7" />
@@ -223,8 +128,8 @@ const MyPage = () => {
               </View>
               <ArrowRight size={12} color="#ccc" />
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>

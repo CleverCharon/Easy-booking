@@ -10,9 +10,8 @@ const BASE_URL = 'http://localhost:3000/api'
  * @param options - Taro 请求配置选项
  * @returns {Promise<any>} 响应数据
  */
-export const request = async (url: string, options: Taro.request.Option = {}) => {
+export const request = async (url: string, options: Omit<Taro.request.Option, 'url'> = {}) => {
   const fullUrl = `${BASE_URL}${url}`;
-  console.log('Initiating request:', fullUrl, options);
   try {
     const response = await Taro.request({
       url: fullUrl,

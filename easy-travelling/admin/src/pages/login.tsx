@@ -76,10 +76,13 @@ export default function LoginPage() {
     setLoginLoading(true)
     try {
       const res = await apiLogin({ username: values.username, password: values.password })
+      console.log('Login success:', res)
       setToken(res.token!)
       setUser(res.user!)
       toast.success(res.message || '登录成功')
-      navigate(res.user?.role === 'admin' ? '/admin' : '/hotels', { replace: true })
+      const target = res.user?.role === 'admin' ? '/admin' : '/hotels'
+      console.log('Navigating to:', target)
+      navigate(target, { replace: true })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '登录失败')
     } finally {

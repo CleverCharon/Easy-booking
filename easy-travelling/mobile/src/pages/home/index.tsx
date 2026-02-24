@@ -1,19 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { View, Text, Image, ScrollView, Input } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { 
-  Notice, 
   User as UserIcon, 
   Location, 
   Search, 
   Close, 
-  ArrowRight,
-  Coupon,
-  Cart,
-  Heart,
-  Order
+  ArrowRight
 } from '@nutui/icons-react-taro'
-import { Button, Swiper, SwiperItem, Toast, Calendar, Picker, Popup, InputNumber } from '@nutui/nutui-react-taro'
+import { Button, Swiper, SwiperItem, Calendar, Picker, Popup, InputNumber } from '@nutui/nutui-react-taro'
 import dayjs from 'dayjs'
 import { useSearchStore } from '../../store/search'
 import { get } from '../../utils/request'
@@ -37,7 +32,7 @@ const HomePage = () => {
   const [selectedTab, setSelectedTab] = useState('国内')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [banners, setBanners] = useState<any[]>([])
-  const [cityList, setCityList] = useState<any[]>(allCities)
+  const [cityList] = useState<any[]>(allCities)
   const [fullCities, setFullCities] = useState<any[]>([])
   
   // 弹窗可见性状态管理
@@ -71,32 +66,25 @@ const HomePage = () => {
    */
   const handleLocation = async () => {
     try {
-      Toast.loading('定位中...', { duration: 0 })
+      Taro.showLoading({ title: '定位中...' })
       const cityName = await getLocation(fullCities)
-      Toast.hide()
+      Taro.hideLoading()
       if (cityName) {
         setCity(cityName)
-        Toast.show({ content: `已定位到: ${cityName}`, icon: 'success' })
+        Taro.showToast({ title: `已定位到: ${cityName}`, icon: 'success' })
       } else {
-        Toast.show({ content: '未匹配到附近城市', icon: 'fail' })
+        Taro.showToast({ title: '未匹配到附近城市', icon: 'none' })
       }
     } catch (e) {
-      Toast.hide()
+      Taro.hideLoading()
       console.error(e)
-      Toast.show({ content: '定位失败，请检查权限', icon: 'fail' })
+      Taro.showToast({ title: '定位失败，请检查权限', icon: 'none' })
     }
   }
 
   const tabs = ['国内', '海外', '钟点房', '民宿']
   const quickTags = ['亲子', '豪华', '免费停车', '海景', '温泉', '宠物友好', '情侣', '商务']
   
-  const quickAccess = [
-    { name: '优惠中心', icon: <Coupon color="#2C439B" size={20} /> },
-    { name: '特价酒店', icon: <Cart color="#2C439B" size={20} /> },
-    { name: '收藏降价', icon: <Heart color="#2C439B" size={20} /> },
-    { name: '我的订单', icon: <Order color="#2C439B" size={20} />, path: '/pages/order/list/index' }
-  ]
-
   const handleTagClick = (tag: string) => {
     if (selectedTags.includes(tag)) {
       setSelectedTags(selectedTags.filter(t => t !== tag))
@@ -109,21 +97,12 @@ const HomePage = () => {
     Taro.switchTab({ url: '/pages/list/index' })
   }
 
-  const handleQuickAccess = (item: any) => {
-    if (item.path) {
-      Taro.navigateTo({ url: item.path })
-    } else {
-      Toast.show(`${item.name} 功能开发中`)
-    }
-  }
-
   const confirmDate = (param: any) => {
     if (Array.isArray(param) && param.length === 2) {
       // 处理 NutUI 日历返回的日期格式
       const startVal = param[0][3] || param[0]
       const endVal = param[1][3] || param[1]
       
-      console.log('Selected dates:', startVal, endVal)
       setDates(startVal, endVal)
     }
     setIsCalendarVisible(false)
@@ -206,7 +185,6 @@ const HomePage = () => {
       <View className="top-nav">
         <View className="brand">易宿</View>
         <View className="icons">
-          <Notice color="#fff" size={20} />
           <UserIcon color="#fff" size={20} onClick={() => Taro.switchTab({ url: '/pages/my/index' })} />
         </View>
       </View>
@@ -214,7 +192,7 @@ const HomePage = () => {
       {/* Banner */}
       <View className="banner-container">
         {banners.length > 0 && (
-          <Swiper height={220} autoPlay paginationVisible loop>
+          <Swiper height={220} autoPlay loop>
             {banners.map((item, idx) => (
               <SwiperItem key={item.id || idx}>
                 <Image src={item.image_url} mode="aspectFill" className="banner-img" />
@@ -223,7 +201,6 @@ const HomePage = () => {
           </Swiper>
         )}
         <View className="banner-overlay" />
-        <View className="ad-badge">广告推荐</View>
       </View>
 
       {/* Search Card */}
@@ -317,40 +294,6 @@ const HomePage = () => {
 
         {/* Search Button */}
         <Button className="search-btn" onClick={handleSearch}>开始搜索</Button>
-      </View>
-
-      {/* Quick Access */}
-      <View className="quick-access">
-        {quickAccess.map((item, idx) => (
-          <View key={idx} className="qa-item" onClick={() => handleQuickAccess(item)}>
-            <View className="icon-circle">{item.icon}</View>
-            <Text className="qa-name">{item.name}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* Inspiration */}
-      <View className="section-container">
-        <Text className="section-title">住宿灵感</Text>
-        <View className="inspiration-grid">
-           <View className="insp-card">
-              <Image src="https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?auto=format&fit=crop&w=800&q=80" className="insp-img" mode="aspectFill" />
-              <Text className="insp-text">冬日暖屋</Text>
-           </View>
-           <View className="insp-card">
-              <Image src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80" className="insp-img" mode="aspectFill" />
-              <Text className="insp-text">海边度假</Text>
-           </View>
-        </View>
-      </View>
-
-      {/* Promo Banner */}
-      <View className="promo-banner">
-        <View className="promo-info">
-          <Text className="promo-title">新人专享大礼包</Text>
-          <Text className="promo-desc">最高可领 ¥1000</Text>
-        </View>
-        <Button size="small" className="promo-btn">立即领取</Button>
       </View>
 
       {/* Spacing for TabBar */}

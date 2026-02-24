@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { View, Text, Image } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { Button, Input, Toast } from '@nutui/nutui-react-taro'
+import { Button, Input } from '@nutui/nutui-react-taro'
 import { Close, Check } from '@nutui/icons-react-taro'
 import { useUserStore } from '../../store/user'
 import { post } from '../../utils/request'
@@ -33,17 +33,17 @@ const LoginPage = () => {
    * 请求发送短信验证码
    */
   const handleGetCode = async () => {
-    console.log('handleGetCode clicked, phone:', phone);
     if (!phone || phone.length !== 11) {
-      Toast.show('请输入正确的手机号')
+      Taro.showToast({ title: '请输入正确的手机号', icon: 'none' })
       return
     }
 
     if (countdown > 0) return
 
     try {
-      Toast.show({ content: '正在请求验证码...', icon: 'loading' })
+      Taro.showLoading({ title: '正在请求验证码...' })
       await post('/sms/send', { phone })
+      Taro.hideLoading()
       setCountdown(60)
       const timer = setInterval(() => {
         setCountdown(prev => {
@@ -54,8 +54,9 @@ const LoginPage = () => {
           return prev - 1
         })
       }, 1000)
-      Toast.show('验证码已发送')
+      Taro.showToast({ title: '验证码已发送', icon: 'none' })
     } catch (e: any) {
+      Taro.hideLoading()
       // 错误通常由 request.ts 拦截器统一处理
     }
   }
@@ -64,21 +65,20 @@ const LoginPage = () => {
    * 处理登录提交逻辑
    */
   const handleLogin = async () => {
-    console.log('Login clicked. Agreed:', agreed, 'Phone:', phone, 'Code:', code, 'Method:', loginMethod)
     if (!agreed) {
-      Toast.show('请先阅读并同意协议')
+      Taro.showToast({ title: '请先阅读并同意协议', icon: 'none' })
       return
     }
     if (!phone) {
-      Toast.show('请输入手机号')
+      Taro.showToast({ title: '请输入手机号', icon: 'none' })
       return
     }
     if (loginMethod === 'code' && !code) {
-      Toast.show('请输入验证码')
+      Taro.showToast({ title: '请输入验证码', icon: 'none' })
       return
     }
     if (loginMethod === 'password' && !password) {
-      Toast.show('请输入密码')
+      Taro.showToast({ title: '请输入密码', icon: 'none' })
       return
     }
 
@@ -87,7 +87,7 @@ const LoginPage = () => {
       
       // 如果后端返回新用户标识，则重定向至账号设置页
       if (res.is_new) {
-        Toast.show('请设置账号密码')
+        Taro.showToast({ title: '请设置账号密码', icon: 'none' })
         setTimeout(() => {
           Taro.navigateTo({ url: `/pages/login/setup/index?userId=${res.id}&phone=${res.phone}` })
         }, 1000)
@@ -102,18 +102,18 @@ const LoginPage = () => {
         const userInfo = res.user || res;
         login(userInfo)
         
-        Toast.show({ content: '登录成功', icon: 'success' })
+        Taro.showToast({ title: '登录成功', icon: 'success' })
         setTimeout(() => {
           Taro.navigateBack()
         }, 1000)
       } else {
-        Toast.show('登录失败')
+        Taro.showToast({ title: '登录失败', icon: 'none' })
       }
     } catch (e: any) {
       console.error(e)
       // 仅当特定业务错误未被处理时显示通用提示
       if (!e.message || !e.message.includes('密码')) {
-         Toast.show(e.message || '登录异常')
+         Taro.showToast({ title: e.message || '登录异常', icon: 'none' })
       }
     }
   }
@@ -123,7 +123,7 @@ const LoginPage = () => {
    */
   const handleWechatLogin = async () => {
     if (!agreed) {
-      Toast.show('请先阅读并同意协议')
+      Taro.showToast({ title: '请先阅读并同意协议', icon: 'none' })
       return
     }
 
@@ -134,17 +134,17 @@ const LoginPage = () => {
         const res = await post('/user/wx-login', { code: loginRes.code })
         if (res.token) {
           login(res.userInfo)
-          Toast.show({ content: '微信登录成功', icon: 'success' })
+          Taro.showToast({ title: '微信登录成功', icon: 'success' })
           setTimeout(() => {
             Taro.navigateBack()
           }, 1000)
         }
       } else {
-        Toast.show('微信登录失败')
+        Taro.showToast({ title: '微信登录失败', icon: 'none' })
       }
     } catch (e) {
       console.error(e)
-      Toast.show('微信登录异常')
+      Taro.showToast({ title: '微信登录异常', icon: 'none' })
     }
   }
 
@@ -196,7 +196,6 @@ const LoginPage = () => {
               placeholder="请输入您的手机号码"
               value={phone}
               onChange={(val) => {
-                console.log('Phone input:', val)
                 setPhone(val)
               }}
               type="number"
@@ -251,7 +250,7 @@ const LoginPage = () => {
 
           {loginMethod === 'password' && (
             <View className="switch-method" onClick={() => setLoginMethod('code')}>
-              <Text>没有账号？去注册</Text>
+              <Text>没有账号？去<Text style={{ fontSize: '16px', color: 'rgba(255, 255, 255, 0.7)', textDecoration: 'underline' }}>注册</Text></Text>
             </View>
           )}
           

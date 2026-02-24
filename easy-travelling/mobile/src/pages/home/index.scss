@@ -79,13 +79,29 @@
 
   .banner-container {
     position: relative;
-    height: 200px;
+    height: 190px;
     width: 100%;
     overflow: hidden;
 
     .banner-img {
       width: 100%;
       height: 100%;
+      display: block;
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+    }
+
+    .nut-swiper {
+      height: 100% !important;
+    }
+    
+    .nut-swiper-inner {
+      height: 100% !important;
     }
 
     .banner-overlay {
@@ -93,25 +109,13 @@
       inset: 0;
       background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
       pointer-events: none;
-    }
-
-    .ad-badge {
-      position: absolute;
-      bottom: 8px;
-      left: 8px;
-      background: #DFA0C8;
-      color: #fff;
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
+      z-index: 2;
     }
   }
 
   .search-card {
-    position: absolute;
-    top: 180px;
-    left: 16px;
-    right: 16px;
+    position: relative;
+    margin: 16px;
     z-index: 10;
     background: #fff;
     border-radius: 18px;
@@ -300,104 +304,6 @@
       font-size: 16px;
       font-weight: bold;
       color: #fff;
-    }
-  }
-
-  .quick-access {
-    margin-top: 340px; /* Adjust based on search card height */
-    padding: 0 16px;
-    display: flex;
-    justify-content: space-around;
-    margin-bottom: 24px;
-    position: relative;
-    z-index: 5;
-
-    .qa-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-
-      .icon-circle {
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background: rgba(51, 199, 247, 0.12);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .qa-name {
-        font-size: 12px;
-        color: #25255F;
-        opacity: 0.7;
-      }
-    }
-  }
-
-  .section-container {
-    padding: 0 16px;
-    margin-bottom: 24px;
-
-    .section-title {
-      font-size: 16px;
-      font-weight: bold;
-      color: #25255F;
-      margin-bottom: 8px;
-      display: block;
-    }
-
-    .inspiration-grid {
-      display: flex;
-      gap: 12px;
-
-      .insp-card {
-        flex: 1;
-        background: #f3f4f6;
-        border-radius: 8px;
-        padding: 12px;
-        
-        .insp-img {
-          width: 100%;
-          height: 100px;
-          border-radius: 8px;
-          margin-bottom: 8px;
-          background: #ddd;
-        }
-
-        .insp-text {
-          font-size: 12px;
-          color: #25255F;
-        }
-      }
-    }
-  }
-
-  .promo-banner {
-    margin: 0 16px;
-    background: linear-gradient(to right, #DFA0C8, #2C439B);
-    border-radius: 12px;
-    padding: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: #fff;
-
-    .promo-info {
-      display: flex;
-      flex-direction: column;
-      .promo-title { font-weight: bold; font-size: 16px; }
-      .promo-desc { font-size: 12px; opacity: 0.9; margin-top: 2px; }
-    }
-
-    .promo-btn {
-      background: #fff;
-      color: #2C439B;
-      border: none;
-      font-weight: bold;
-      border-radius: 99px;
-      padding: 0 16px;
     }
   }
 

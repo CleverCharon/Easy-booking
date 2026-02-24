@@ -39,11 +39,9 @@ export const useSearchStore = create<SearchState>((set) => ({
   setKeyword: (keyword) => set({ keyword }),
   setPeople: (adults, children, roomCount = 1) => set({ adults, children, roomCount }),
   setPriceRange: (minPrice, maxPrice) => {
-    console.log('Store: setPriceRange', minPrice, maxPrice)
     set({ minPrice, maxPrice })
   },
   setStarLevels: (starLevels) => {
-    console.log('Store: setStarLevels', starLevels)
     set({ starLevels })
   },
   setTags: (tags) => set({ tags }),

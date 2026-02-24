@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { View, Text, Image, ScrollView, Input } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { Search, Heart, HeartFill, StarFill, Location, Close } from '@nutui/icons-react-taro'
-import { Button, Skeleton, Tag, Popup, Checkbox, Rate } from '@nutui/nutui-react-taro'
+import { Button, Skeleton, Popup } from '@nutui/nutui-react-taro'
 import { useSearchStore } from '../../store/search'
 import { useFavoriteStore, Hotel } from '../../store/favorite'
 import { useUserStore } from '../../store/user'
@@ -176,7 +176,6 @@ const ListPage = () => {
   }
 
   const goDetail = (id: string) => {
-    console.log('Navigating to detail:', id)
     Taro.navigateTo({
       url: `/pages/detail/index?id=${id}`,
       fail: (err) => {
@@ -251,7 +250,7 @@ const ListPage = () => {
           <View className="skeleton-list">
             {[1, 2, 3].map(i => (
               <View key={i} className="sk-card">
-                <Skeleton width="100%" height="160px" title animated row={3} />
+<Skeleton style={{ width: '100%', height: '160px' }} title animated rows={3} />
               </View>
             ))}
           </View>

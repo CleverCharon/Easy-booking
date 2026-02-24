@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
-import { View, Text, Image } from '@tarojs/components'
+import { useState, useEffect } from 'react'
+import { View, Text } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
-import { Button, Input, Cell, Toast } from '@nutui/nutui-react-taro'
+import { Button, Input, Cell } from '@nutui/nutui-react-taro'
 import { ArrowLeft } from '@nutui/icons-react-taro'
 import { post, get } from '../../../utils/request'
 import { useUserStore } from '../../../store/user'
@@ -16,8 +16,7 @@ const CreateOrder = () => {
   const [hotelName, setHotelName] = useState('')
   const [roomName, setRoomName] = useState('')
   const [price, setPrice] = useState(0)
-  const [image, setImage] = useState('')
-
+  
   const [guestName, setGuestName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestIdCard, setGuestIdCard] = useState('')
@@ -28,7 +27,6 @@ const CreateOrder = () => {
       try {
         const res = await get(`/hotels/${hotelId}`)
         setHotelName(res.name)
-        setImage(res.main_image)
         
         // Find room info
         if (res.rooms) {
@@ -40,7 +38,7 @@ const CreateOrder = () => {
         }
       } catch (e) {
         console.error(e)
-        Toast.show('获取信息失败')
+        Taro.showToast({ title: '获取信息失败', icon: 'none' })
       }
     }
     fetchData()
@@ -48,7 +46,7 @@ const CreateOrder = () => {
 
   const handleSubmit = async () => {
     if (!guestName || !guestPhone || !guestIdCard) {
-      Toast.show('请填写完整入住人信息(含身份证)')
+      Taro.showToast({ title: '请填写完整入住人信息', icon: 'none' })
       return
     }
 
@@ -60,26 +58,18 @@ const CreateOrder = () => {
         user_id_card: guestIdCard,
         hotel_id: hotelId,
         hotel_name: hotelName,
-        room_type_name: roomName, // Backend expects room_type_name? check index.js
-        // Wait, server expects 'room_type_name' but index.js INSERTs it?
-        // Let's check server again. Server SQL: INSERT INTO bookings ... room_type_name is not in INSERT list!
-        // Wait, check server index.js again.
-        // SQL: INSERT INTO bookings (user_name, ..., hotel_name, check_in_date, ...)
-        // It DOES NOT insert room_type_name in the snippet I saw!
-        // But the TABLE has room_type_name.
-        // I should fix server index.js too.
-        
+        room_type_name: roomName,
         check_in_date: '2025-10-25', // Hardcoded for demo
         check_out_date: '2025-10-26',
         total_price: price
       })
       
-      Toast.show({ content: '预订成功', icon: 'success' })
+      Taro.showToast({ title: '预订成功', icon: 'success' })
       setTimeout(() => {
         Taro.navigateTo({ url: '/pages/order/list/index' })
       }, 1000)
     } catch (e) {
-      Toast.show('预订失败')
+      Taro.showToast({ title: '预订失败', icon: 'none' })
     }
   }
 
@@ -98,24 +88,30 @@ const CreateOrder = () => {
 
       <View className="card form">
         <Text className="section-title">入住人信息</Text>
-        <Input 
-          label="姓名" 
-          placeholder="请输入入住人姓名" 
-          value={guestName} 
-          onChange={(val) => setGuestName(val)} 
-        />
-        <Input 
-          label="手机号" 
-          placeholder="请输入联系手机号" 
-          value={guestPhone} 
-          onChange={(val) => setGuestPhone(val)} 
-        />
-        <Input 
-          label="身份证" 
-          placeholder="请输入身份证号" 
-          value={guestIdCard} 
-          onChange={(val) => setGuestIdCard(val)} 
-        />
+        <View className="input-item">
+          <Text className="input-label">姓名</Text>
+          <Input 
+            placeholder="请输入入住人姓名" 
+            value={guestName} 
+            onChange={(val) => setGuestName(val)} 
+          />
+        </View>
+        <View className="input-item">
+          <Text className="input-label">手机号</Text>
+          <Input 
+            placeholder="请输入联系手机号" 
+            value={guestPhone} 
+            onChange={(val) => setGuestPhone(val)} 
+          />
+        </View>
+        <View className="input-item">
+          <Text className="input-label">身份证</Text>
+          <Input 
+            placeholder="请输入身份证号" 
+            value={guestIdCard} 
+            onChange={(val) => setGuestIdCard(val)} 
+          />
+        </View>
       </View>
 
       <View className="card price-info">

@@ -6,11 +6,7 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
   .nav-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
     width: 100%;
-    z-index: 100;
     padding: 0 16px;
     padding-top: calc(8px + env(safe-area-inset-top));
     height: 44px;
@@ -49,7 +45,6 @@
   .content-scroll {
     flex: 1;
     overflow-y: auto;
-    padding-top: calc(52px + env(safe-area-inset-top));
   }
 
   .user-section {
@@ -62,35 +57,51 @@
       box-shadow: 0 2px 12px rgba(0,0,0,0.02);
 
       .logged-in {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px 0;
+
         .top-row {
           display: flex;
+          flex-direction: column;
           align-items: center;
-          justify-content: space-between;
-          margin-bottom: 20px;
+          gap: 16px;
+        }
 
-          .avatar-wrap {
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            background: linear-gradient(to bottom right, #33C7F7, #DFA0C8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            .char { font-size: 24px; font-weight: bold; color: #fff; }
+        .avatar-wrap {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: #33C7F7;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(51, 199, 247, 0.3);
+
+          .char {
+            font-size: 32px;
+            color: #fff;
+            font-weight: bold;
           }
+        }
 
-          .info {
-            flex: 1;
-            margin-left: 16px;
-            
-            .name { font-size: 18px; font-weight: bold; color: #25255F; display: block; margin-bottom: 4px; }
-            .level-tag {
-              background: rgba(51, 199, 247, 0.15);
-              border-radius: 99px;
-              padding: 2px 8px;
-              display: inline-block;
-              .tag-txt { font-size: 10px; color: #2C439B; font-weight: bold; }
-            }
+        .info {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+
+          .name {
+            font-size: 24px;
+            font-weight: 700;
+            color: #25255F;
+            letter-spacing: 0.5px;
+            background: linear-gradient(120deg, #25255F, #2C439B);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-top: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.05);
           }
         }
 
@@ -152,175 +163,51 @@
   }
 
   .benefits-card {
-    margin: 0 16px 16px;
-    background: #fff;
-    border-radius: 16px;
-    padding: 20px;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.02);
-
-    .tag {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: #DFA0C8;
-      color: #fff;
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 99px;
-    }
-
-    .content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-
-      .tit { font-size: 16px; font-weight: bold; color: #25255F; display: block; margin-bottom: 4px; }
-      .sub { font-size: 12px; color: #25255F; opacity: 0.7; }
-
-      .get-btn {
-        background: linear-gradient(to right, #2C439B, #33C7F7);
-        border: none;
-        color: #fff;
-        border-radius: 99px;
-        font-size: 12px;
-        padding: 0 16px;
-        height: 32px;
-        line-height: 32px;
-      }
-    }
+    display: none;
   }
 
   .grid-card {
     margin: 0 16px 16px;
     background: #fff;
     border-radius: 16px;
-    padding: 16px;
+    padding: 24px 0;
     box-shadow: 0 2px 12px rgba(0,0,0,0.02);
 
     .grid-box {
       display: flex;
-      flex-wrap: wrap;
-      
+      justify-content: center;
+      align-items: center;
+      gap: 60px;
+
       .grid-item {
-        width: 25%;
         display: flex;
         flex-direction: column;
         align-items: center;
-        margin-bottom: 16px;
-        
+        justify-content: center;
+        min-width: 80px;
+
         .icon-box {
           width: 48px;
           height: 48px;
-          background: rgba(51, 199, 247, 0.1);
-          border-radius: 12px;
+          background: rgba(44, 67, 155, 0.05);
+          border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           margin-bottom: 8px;
+          transition: all 0.3s;
+        }
+
+        &:active .icon-box {
+          transform: scale(0.95);
+          background: rgba(44, 67, 155, 0.1);
         }
 
         .name {
-          font-size: 12px;
-          color: #25255F;
-          opacity: 0.7;
+          font-size: 14px;
+          color: #333;
+          font-weight: 500;
         }
-      }
-    }
-  }
-
-  .vouchers-card {
-    margin: 0 16px 16px;
-    background: #fff;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.02);
-
-    .head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-
-      .tit { font-size: 14px; font-weight: bold; color: #25255F; }
-      .more {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 12px;
-        color: #33C7F7;
-      }
-    }
-
-    .v-grid {
-      display: flex;
-      gap: 16px;
-      
-      .v-item {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-
-        .icon-bg {
-          width: 48px;
-          height: 48px;
-          background: rgba(51, 199, 247, 0.1);
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 8px;
-        }
-
-        .count { font-size: 18px; font-weight: bold; color: #2C439B; }
-        .name { font-size: 12px; color: #25255F; opacity: 0.7; }
-      }
-    }
-
-    .login-tip {
-      text-align: center;
-      margin-top: 16px;
-      .go-btn {
-        background: rgba(51, 199, 247, 0.12);
-        color: #2C439B;
-        border: none;
-        border-radius: 99px;
-        font-size: 12px;
-        padding: 0 24px;
-        height: 32px;
-        line-height: 32px;
-      }
-    }
-  }
-
-  .banners-list {
-    margin: 0 16px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-
-    .banner-item {
-      padding: 16px;
-      border-radius: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.02);
-
-      .tit { font-size: 14px; font-weight: bold; color: #25255F; display: block; margin-bottom: 4px; }
-      .sub { font-size: 12px; color: #25255F; opacity: 0.7; }
-
-      .view-btn {
-        background: #2C439B;
-        color: #fff;
-        border: none;
-        border-radius: 99px;
-        font-size: 10px;
-        padding: 0 12px;
-        height: 24px;
-        line-height: 24px;
       }
     }
   }
