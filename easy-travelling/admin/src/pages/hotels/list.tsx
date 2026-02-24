@@ -37,9 +37,10 @@ interface MerchantProfile {
   role: string
   avatar: string | null
   phone: string | null
-  created_at: string
+  created_at: string | null
   role_code: string | null
 }
+
 
 const STATUS_CONFIG: Record<number, StatusConfig> = {
   0: { text: '待审核', color: 'processing' },
@@ -51,10 +52,36 @@ const STATUS_CONFIG: Record<number, StatusConfig> = {
 const AVATAR_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
 
 function formatDate(dateLike?: string | null): string {
-  if (!dateLike) return '-'
+  if (!dateLike) return '-'  // ✅ 处理 null、undefined、空字符串
+  
+  console.log('【调试】formatDate 输入值:', dateLike, '类型:', typeof dateLike)
+  
+  // 情况1：处理 MySQL datetime 格式 (2026-02-24 12:48:53)
+  const dateStr = String(dateLike).trim()
+  const mysqlMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (mysqlMatch) {
+    const [_, year, month, day] = mysqlMatch
+    return `${year}年${parseInt(month, 10)}月${parseInt(day, 10)}日`
+  }
+  
+  // 情况2：尝试用 Date 对象解析
   const d = new Date(dateLike)
-  if (Number.isNaN(d.getTime())) return String(dateLike).slice(0, 10)
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
+  }
+  
+  // 情况3：如果是时间戳
+  const num = Number(dateLike)
+  if (!isNaN(num) && num > 0) {
+    const timestamp = num > 10000000000 ? num : num * 1000
+    const d2 = new Date(timestamp)
+    if (!Number.isNaN(d2.getTime())) {
+      return `${d2.getFullYear()}年${d2.getMonth() + 1}月${d2.getDate()}日`
+    }
+  }
+  
+  // 保底：返回原始字符串的前10个字符
+  return dateStr.slice(0, 10)
 }
 
 export default function HotelListPage() {
@@ -118,14 +145,84 @@ export default function HotelListPage() {
     }
   }
 
+  // ✅【新增】加载管理员资料
+  useEffect(() => {
+    // 只在开发环境打印调试信息
+    if (import.meta.env.DEV) {
+      console.log('【调试】=== 用户信息调试 ===')
+      console.log('1. 本地存储 user:', user)
+      console.log('2. 从API获取的profile:', profile)
+      console.log('3. created_at 原始值:', profile?.created_at)
+      console.log('4. 格式化后显示:', formatDate(profile?.created_at))
+    
+      // 检查数据源
+      if (profile) {
+        console.log('5. profile 所有字段:', Object.keys(profile))
+      }
+      if (user) {
+        console.log('6. user 所有字段:', Object.keys(user))
+      }
+      console.log('【调试】=== 调试结束 ===')
+    }
+  
+    // 自动补全机制：如果 profile 没有 created_at 但 user 有
+    if (profile && !profile.created_at && user) {
+      const userAny = user as any
+      if (userAny.created_at || userAny.createdAt || userAny.registerTime) {
+        const createdAt = userAny.created_at || userAny.createdAt || userAny.registerTime
+        console.log('【自动补全】从 user 获取到 created_at:', createdAt)
+        setProfile(prev => prev ? { ...prev, created_at: createdAt } : prev)
+      }
+    }
+  }, [profile, user])
+  // ✅【修改】加载管理员资料 - 添加调试并确保正确映射 created_at
+  // ✅【修改】使用类型断言和索引访问，避免 any
+  // 在 ManageHotels.tsx 中修改 loadProfile 函数
   const loadProfile = async () => {
     if (!user || user.role !== 'merchant') return
     try {
       const res = await getMe()
+      console.log('【调试】getMe 返回的原始数据:', res)
+    
       if (res?.user) {
-        const next = res.user as MerchantProfile
+        // 使用类型断言并添加防御性处理
+        const userData = res.user as any
+      
+        // 安全获取 created_at，如果不存在则使用默认值或从其他地方获取
+        let created_at_value = userData.created_at || null
+
+        created_at_value = userData.created_at || 
+                          userData.createdAt || 
+                          userData.createTime || 
+                          userData.registerTime || 
+                          null
+        
+        console.log('【调试】从 API 获取的 created_at:', created_at_value)
+        // 如果 userData 中没有，尝试从 res 中获取
+        if (!created_at_value) {
+          created_at_value = (res as any).created_at || 
+                            (res as any).createdAt || 
+                            (res as any).registerTime || 
+                            null
+          
+          console.log('【调试】从本地 user 获取的 created_at:', created_at_value)
+        }
+      
+        const next: MerchantProfile = {
+          id: userData.id,
+          username: userData.username,
+         role: userData.role,
+          avatar: userData.avatar || null,
+          phone: userData.phone || null,
+          created_at: created_at_value,
+          role_code: userData.role_code || userData.inviteCode || null,
+        }
+      
+        console.log('【调试】处理后的 profile 数据:', next)
         setProfile(next)
         setEditUsername(next.username || '')
+      }else {
+      console.log('【调试】res.user 不存在')
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '加载用户信息失败')

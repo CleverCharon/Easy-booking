@@ -565,11 +565,32 @@ app.post('/api/user/setup-account', (req, res) => {
 /**
  * 获取当前用户信息
  */
+ // ✅ 添加 created_at 字段
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  db.query('SELECT id, username, role, avatar, phone, role_code FROM sys_users WHERE id = ?', [req.user.userId], (err, rows) => {
-    if (err || rows.length === 0) return res.status(404).json({ success: false, message: '用户不存在' });
-    res.json({ success: true, user: rows[0] });
-  });
+  db.query(
+    'SELECT id, username, role, avatar, phone, role_code, created_at FROM sys_users WHERE id = ?', 
+    [req.user.userId], 
+    (err, rows) => {
+      if (err || rows.length === 0) return res.status(404).json({ success: false, message: '用户不存在' });
+      
+      const user = rows[0];
+      
+      // ✅ 显式构建返回对象，确保字段正确
+      const userData = {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        avatar: user.avatar,
+        phone: user.phone,
+        role_code: user.role_code,  // 邀请码
+        created_at: user.created_at  // 注册时间
+      };
+      
+      console.log('【后端调试】返回数据:', userData);
+      
+      res.json({ success: true, user: userData });
+    }
+  );
 });
 
 /**
