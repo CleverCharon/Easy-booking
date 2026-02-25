@@ -1,76 +1,192 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { View, Text, Image, ScrollView } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import { Button } from '@nutui/nutui-react-taro'
-import { HeartFill, StarFill, Close, ArrowDown, Check } from '@nutui/icons-react-taro'
+import { ArrowDown, Check, HeartFill, StarFill } from '@nutui/icons-react-taro'
 import { useUserStore } from '../../store/user'
 import { get, post } from '../../utils/request'
 import './index.scss'
 
+type FavoriteTab = 'collected' | 'viewed'
+type SortMode = 'latest' | 'price_asc' | 'price_desc' | 'score_desc'
+
+interface HotelCard {
+  id: string
+  name: string
+  image: string
+  score: number
+  price: number
+  tags: string[]
+  address: string
+  city: string
+  reviewCount: number
+}
+
+const DEFAULT_IMAGE =
+  'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80'
+
+const sortTextMap: Record<SortMode, string> = {
+  latest: '最近收藏',
+  price_asc: '价格从低到高',
+  price_desc: '价格从高到低',
+  score_desc: '评分从高到低',
+}
+
+const sortModes: SortMode[] = ['latest', 'price_asc', 'price_desc', 'score_desc']
+
+const normalizeTags = (raw: unknown): string[] => {
+  if (Array.isArray(raw)) return raw.map((x) => String(x)).filter(Boolean)
+  if (typeof raw === 'string') {
+    return raw
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
+const normalizeHotel = (item: any): HotelCard => ({
+  id: String(item.id ?? ''),
+  name: item.name || item.title || '未命名酒店',
+  image: item.image || item.main_image || item.image_url || DEFAULT_IMAGE,
+  score: Number(item.score || item.rating || 0),
+  price: Number(item.price ?? item.min_price ?? 0),
+  tags: normalizeTags(item.tags),
+  address: item.address || item.location || '暂无地址信息',
+  city: item.city || '',
+  reviewCount: Number(item.review_count || item.reviews || 0),
+})
+
 const FavoritePage = () => {
-  const { userInfo } = useUserStore()
-  const [activeTab, setActiveTab] = useState<'collected' | 'viewed'>('collected')
-  const [list, setList] = useState<any[]>([])
+  const { userInfo, isLogin } = useUserStore()
+  const [activeTab, setActiveTab] = useState<FavoriteTab>('collected')
+  const [list, setList] = useState<HotelCard[]>([])
+  const [loading, setLoading] = useState(false)
+
   const [isManaging, setIsManaging] = useState(false)
   const [selectedItems, setSelectedItems] = useState<string[]>([])
-  const [city, setCity] = useState('全部城市')
-  const [sortOption, setSortOption] = useState('最近收藏')
+  const [cityFilter, setCityFilter] = useState('全部城市')
+  const [sortMode, setSortMode] = useState<SortMode>('latest')
 
   const fetchData = async () => {
     if (!userInfo?.id) return
+    setLoading(true)
     try {
       const endpoint = activeTab === 'collected' ? '/favorites/list' : '/history/list'
       const res = await get(`${endpoint}?user_id=${userInfo.id}`)
-      setList(res)
+      const normalized = (Array.isArray(res) ? res : []).map(normalizeHotel)
+      setList(normalized)
     } catch (e) {
       console.error(e)
+      Taro.showToast({ title: '加载失败，请稍后重试', icon: 'none' })
+    } finally {
+      setLoading(false)
     }
   }
 
   useDidShow(() => {
-    if (!userInfo?.id) {
-      Taro.showToast({ title: '请先登录', icon: 'none' })
-      // Optional: Redirect to login
-      // Taro.navigateTo({ url: '/pages/login/index' })
-    } else {
-      fetchData()
-    }
+    if (userInfo?.id) fetchData()
   })
 
   useEffect(() => {
     fetchData()
-  }, [activeTab, userInfo])
+    setIsManaging(false)
+    setSelectedItems([])
+    setCityFilter('全部城市')
+  }, [activeTab, userInfo?.id])
+
+  const cityOptions = useMemo(() => {
+    const citySet = new Set<string>()
+    list.forEach((item) => {
+      if (item.city) citySet.add(item.city)
+    })
+    return ['全部城市', ...Array.from(citySet)]
+  }, [list])
+
+  const filteredList = useMemo(() => {
+    let result = [...list]
+    if (cityFilter !== '全部城市') {
+      result = result.filter((item) => item.city === cityFilter)
+    }
+
+    if (sortMode === 'price_asc') {
+      result.sort((a, b) => a.price - b.price)
+    } else if (sortMode === 'price_desc') {
+      result.sort((a, b) => b.price - a.price)
+    } else if (sortMode === 'score_desc') {
+      result.sort((a, b) => b.score - a.score)
+    } else {
+      result.sort((a, b) => Number(b.id) - Number(a.id))
+    }
+    return result
+  }, [cityFilter, list, sortMode])
+
+  const allSelected =
+    filteredList.length > 0 && filteredList.every((item) => selectedItems.includes(item.id))
+
+  const toggleSortMode = () => {
+    const current = sortModes.indexOf(sortMode)
+    setSortMode(sortModes[(current + 1) % sortModes.length])
+  }
 
   const toggleSelection = (id: string) => {
     if (selectedItems.includes(id)) {
-      setSelectedItems(selectedItems.filter(item => item !== id))
+      setSelectedItems(selectedItems.filter((item) => item !== id))
     } else {
       setSelectedItems([...selectedItems, id])
     }
   }
 
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedItems([])
+    } else {
+      setSelectedItems(filteredList.map((item) => item.id))
+    }
+  }
+
   const handleManageClick = () => {
-    setIsManaging(!isManaging)
+    setIsManaging((prev) => !prev)
     setSelectedItems([])
   }
 
-  const handleCancelCollection = () => {
-    if (!userInfo) return
+  const handleBatchCancelCollection = () => {
+    if (!userInfo?.id || selectedItems.length === 0) return
+
     Taro.showModal({
       title: '提示',
-      content: '确定要取消收藏选中的酒店吗？',
+      content: `确定取消收藏这 ${selectedItems.length} 家酒店吗？`,
       success: async (res) => {
-        if (res.confirm) {
-          for (const hotelId of selectedItems) {
-             await post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotelId })
-          }
-          fetchData() // Refresh
+        if (!res.confirm) return
+        try {
+          await Promise.all(
+            selectedItems.map((hotelId) =>
+              post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotelId })
+            )
+          )
+          Taro.showToast({ title: '已取消收藏', icon: 'success' })
           setSelectedItems([])
           setIsManaging(false)
-          Taro.showToast({ title: '已取消收藏', icon: 'none' })
+          fetchData()
+        } catch (e) {
+          console.error(e)
+          Taro.showToast({ title: '操作失败，请稍后重试', icon: 'none' })
         }
-      }
+      },
     })
+  }
+
+  const handleSingleCancel = async (hotelId: string) => {
+    if (!userInfo?.id) return
+    try {
+      await post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotelId })
+      setList((prev) => prev.filter((item) => item.id !== hotelId))
+      setSelectedItems((prev) => prev.filter((id) => id !== hotelId))
+      Taro.showToast({ title: '已取消收藏', icon: 'success' })
+    } catch (e) {
+      console.error(e)
+      Taro.showToast({ title: '取消失败', icon: 'none' })
+    }
   }
 
   const goDetail = (id: string) => {
@@ -78,20 +194,21 @@ const FavoritePage = () => {
     Taro.navigateTo({ url: `/pages/detail/index?id=${id}` })
   }
 
-  if (!userInfo) {
-     return (
-        <View className="favorite-page-v2 flex flex-col items-center justify-center h-screen bg-white">
-           <Text className="mb-4 text-gray-500">请先登录后查看收藏</Text>
-           <Button type="primary" onClick={() => Taro.navigateTo({ url: '/pages/login/index' })}>去登录</Button>
-        </View>
-     )
+  if (!isLogin || !userInfo?.id) {
+    return (
+      <View className="favorite-page-v3 auth-empty">
+        <Text className="empty-title">登录后可同步收藏与浏览记录</Text>
+        <Button className="login-btn" onClick={() => Taro.navigateTo({ url: '/pages/login/index' })}>
+          去登录
+        </Button>
+      </View>
+    )
   }
 
   return (
-    <View className="favorite-page-v2">
-      {/* Top Bar */}
+    <View className="favorite-page-v3">
       <View className="top-bar">
-        <Text className="title">收藏/看过的房屋</Text>
+        <Text className="title">{activeTab === 'collected' ? '我的收藏' : '浏览历史'}</Text>
         {activeTab === 'collected' && (
           <Text className="manage-btn" onClick={handleManageClick}>
             {isManaging ? '完成' : '管理'}
@@ -99,118 +216,136 @@ const FavoritePage = () => {
         )}
       </View>
 
-      {/* Custom Tabs */}
-      <View className="tabs-container">
-        <View className="tabs-wrapper">
-          <View 
-            className={`tab-item ${activeTab === 'collected' ? 'active' : ''}`}
-            onClick={() => setActiveTab('collected')}
-          >
-            <Text className="tab-text">我收藏的</Text>
-            {activeTab === 'collected' && <View className="indicator" />}
-          </View>
-          <View 
-            className={`tab-item ${activeTab === 'viewed' ? 'active' : ''}`}
-            onClick={() => setActiveTab('viewed')}
-          >
-            <Text className="tab-text">我看过的</Text>
-            {activeTab === 'viewed' && <View className="indicator" />}
-          </View>
-        </View>
-      </View>
-
-      {/* Filter Bar */}
-      <View className="filter-bar">
-        <View className="filter-left">
-          <View 
-            className={`filter-pill ${city !== '全部城市' ? 'active' : ''}`}
-            onClick={() => setCity(city === '全部城市' ? '北京' : '全部城市')}
-          >
-            <Text>{city}</Text>
-            {city !== '全部城市' && (
-              <Close size={10} className="close-icon" onClick={(e) => { e.stopPropagation(); setCity('全部城市') }} />
-            )}
-          </View>
-          <View className="date-info">
-             <Text className="txt">02月06日–02月07日</Text>
-             <Text className="blue-txt">共1晚</Text>
-          </View>
-        </View>
-        <View 
-          className="filter-sort"
-          onClick={() => setSortOption(sortOption === '最近收藏' ? '价格最低' : '最近收藏')}
+      <View className="tabs">
+        <View
+          className={`tab-item ${activeTab === 'collected' ? 'active' : ''}`}
+          onClick={() => setActiveTab('collected')}
         >
-          <Text className={sortOption !== '最近收藏' ? 'blue' : ''}>{sortOption}</Text>
-          <ArrowDown size={10} color={sortOption !== '最近收藏' ? '#33C7F7' : '#999'} />
+          我收藏的
+        </View>
+        <View
+          className={`tab-item ${activeTab === 'viewed' ? 'active' : ''}`}
+          onClick={() => setActiveTab('viewed')}
+        >
+          我看过的
         </View>
       </View>
 
-      {/* List Content */}
+      <View className="toolbar">
+        <ScrollView scrollX className="city-scroll" showScrollbar={false}>
+          <View className="city-list">
+            {cityOptions.map((city) => (
+              <View
+                key={city}
+                className={`city-chip ${cityFilter === city ? 'active' : ''}`}
+                onClick={() => setCityFilter(city)}
+              >
+                {city}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+        <View className="sort-btn" onClick={toggleSortMode}>
+          <Text>{sortTextMap[sortMode]}</Text>
+          <ArrowDown size={10} />
+        </View>
+      </View>
+
       <ScrollView scrollY className="list-content">
-        {list.length === 0 ? (
-          <View className="empty-state">
-             <Text className="empty-txt">还没有收藏的酒店</Text>
-             <Button className="go-btn" onClick={() => Taro.switchTab({ url: '/pages/list/index' })}>去逛逛</Button>
+        {loading ? (
+          <View className="empty-wrap">
+            <Text className="empty-sub">加载中...</Text>
+          </View>
+        ) : filteredList.length === 0 ? (
+          <View className="empty-wrap">
+            <Text className="empty-title">还没有相关酒店</Text>
+            <Text className="empty-sub">去列表页看看喜欢的酒店吧</Text>
+            <Button className="go-btn" onClick={() => Taro.switchTab({ url: '/pages/list/index' })}>
+              去逛逛
+            </Button>
           </View>
         ) : (
-          list.map((item: any) => (
+          filteredList.map((item) => (
             <View key={item.id} className="hotel-card" onClick={() => goDetail(item.id)}>
-              {isManaging && (
-                <View className="checkbox-area" onClick={(e) => { e.stopPropagation(); toggleSelection(item.id) }}>
-                  <View className={`checkbox ${selectedItems.includes(item.id) ? 'checked' : ''}`}>
+              {isManaging && activeTab === 'collected' && (
+                <View
+                  className="check-area"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleSelection(item.id)
+                  }}
+                >
+                  <View className={`check-dot ${selectedItems.includes(item.id) ? 'checked' : ''}`}>
                     {selectedItems.includes(item.id) && <Check size={12} color="#fff" />}
                   </View>
                 </View>
               )}
-              
-              <View className="card-inner">
-                <View className="img-box">
-                  <Image src={item.image} className="hotel-img" mode="aspectFill" />
-                  <View className="badge">严选</View>
+
+              <Image src={item.image} className="hotel-image" mode="aspectFill" />
+
+              <View className="card-main">
+                <View className="name-row">
+                  <Text className="name">{item.name}</Text>
+                  {activeTab === 'collected' ? (
+                    <HeartFill
+                      size={16}
+                      color={isManaging ? '#C5CCE8' : '#DFA0C8'}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!isManaging) handleSingleCancel(item.id)
+                      }}
+                    />
+                  ) : (
+                    <View className="history-dot">浏览</View>
+                  )}
                 </View>
-                
-                <View className="info-box">
-                  <View className="row-top">
-                    <Text className="name">{item.name || item.title}</Text>
-                    <HeartFill size={16} color={selectedItems.includes(item.id) ? '#DFA0C8' : '#ddd'} />
-                  </View>
 
-                  <View className="row-score">
-                    <Text className="score">{item.score || item.rating}</Text>
-                    <StarFill size={10} color="#33C7F7" className="star" />
-                    <Text className="review">{item.reviewCount || item.reviews || 0}点评</Text>
-                  </View>
+                <View className="score-row">
+                  <Text className="score">{item.score.toFixed(1)}</Text>
+                  <StarFill size={10} color="#33C7F7" />
+                  <Text className="review">{item.reviewCount}条点评</Text>
+                </View>
 
-                  <View className="row-tags">
-                    {(item.tags || []).slice(0, 3).map((t: string, i: number) => (
-                      <Text key={i} className="tag">{t}</Text>
-                    ))}
-                  </View>
+                <View className="tags-row">
+                  {item.tags.slice(0, 3).map((tag) => (
+                    <Text key={`${item.id}-${tag}`} className="tag">
+                      {tag}
+                    </Text>
+                  ))}
+                </View>
 
-                  <Text className="room-type">{item.roomType || '暂无房型信息'}</Text>
-                  <Text className="location">{item.location}</Text>
+                <Text className="address">{item.address}</Text>
 
-                  <View className="row-price">
-                    <View className="price-left">
-                       <Text className="symbol">¥</Text>
-                       <Text className="val">{item.price}</Text>
-                       {item.oldPrice && <Text className="old">¥{item.oldPrice}</Text>}
-                    </View>
-                    {item.saved && <Text className="saved-badge">已省¥{item.saved}</Text>}
-                  </View>
+                <View className="price-row">
+                  <Text className="price-sign">¥</Text>
+                  <Text className="price">{item.price || 0}</Text>
+                  <Text className="price-tip">起/晚</Text>
                 </View>
               </View>
             </View>
           ))
         )}
-        {list.length > 0 && <View className="no-more">—— 无更多数据 ——</View>}
+
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Management Bar */}
-      {isManaging && selectedItems.length > 0 && (
+      {isManaging && activeTab === 'collected' && filteredList.length > 0 && (
         <View className="manage-bar">
-          <Text className="sel-count">已选 <Text className="blue">{selectedItems.length}</Text> 项</Text>
-          <Button className="cancel-btn" onClick={handleCancelCollection}>取消收藏</Button>
+          <View className="select-all" onClick={toggleSelectAll}>
+            <View className={`check-dot ${allSelected ? 'checked' : ''}`}>
+              {allSelected && <Check size={12} color="#fff" />}
+            </View>
+            <Text>全选</Text>
+          </View>
+          <Text className="count">
+            已选 <Text className="num">{selectedItems.length}</Text> 项
+          </Text>
+          <Button
+            className={`remove-btn ${selectedItems.length === 0 ? 'disabled' : ''}`}
+            onClick={handleBatchCancelCollection}
+          >
+            取消收藏
+          </Button>
         </View>
       )}
     </View>

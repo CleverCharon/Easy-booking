@@ -42,21 +42,25 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const db = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'root',
+  password: process.env.DB_PASSWORD || 'clever',
   database: process.env.DB_NAME || 'easy_travel_db',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
 });
+const dbPromise = db.promise();
 
 // 测试数据库连接
 db.getConnection((err, connection) => {
   if (err) {
-    console.error('❌ 数据库连接失败！请检查账号密码。');
+    console.error('Database connection failed. Please check DB credentials.');
     console.error('错误信息:', err.message);
   } else {
-    console.log('✅ 数据库连接成功！服务端已准备就绪。');
+    console.log('Database connected successfully.');
     connection.release();
+    backfillRoomStockForAllHotels().catch((e) => {
+      console.error('[Stock] startup backfill failed:', e.message);
+    });
   }
 });
 
@@ -76,6 +80,8 @@ const createClient = () => {
 // 短信验证码存储 Map: phone -> { code, expireTime, lastSentTime }
 const smsStore = new Map();
 const SMS_CODE_TTL_MS = 5 * 60 * 1000; // 5分钟有效期
+const STOCK_DAYS_AHEAD = Math.max(7, Number(process.env.STOCK_DAYS_AHEAD || 180));
+const DEFAULT_ROOM_TOTAL_COUNT = Math.max(1, Number(process.env.DEFAULT_ROOM_TOTAL_COUNT || 20));
 
 // ==========================================
 // 辅助函数
@@ -92,6 +98,96 @@ function genRoleCode(len = 6) {
   let out = '';
   for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
+}
+
+function formatDateKey(dateVal) {
+  const d = new Date(dateVal);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function buildStayDates(checkIn, checkOut) {
+  const start = new Date(`${checkIn}T00:00:00`);
+  const end = new Date(`${checkOut}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return [];
+  const dates = [];
+  for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+    dates.push(formatDateKey(d));
+  }
+  return dates;
+}
+
+function buildFutureStockDates(days = STOCK_DAYS_AHEAD) {
+  const base = new Date();
+  const dates = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    dates.push(formatDateKey(d));
+  }
+  return dates;
+}
+
+async function getRoomTypeIdsByHotel(conn, hotelId) {
+  const [rows] = await conn.query('SELECT id FROM room_types WHERE hotel_id = ?', [hotelId]);
+  return (rows || []).map((r) => Number(r.id)).filter((id) => Number.isInteger(id) && id > 0);
+}
+
+async function ensureRoomStockRows(
+  conn,
+  hotelId,
+  roomTypeIds,
+  totalCount = DEFAULT_ROOM_TOTAL_COUNT,
+  dateKeys = buildFutureStockDates()
+) {
+  if (!hotelId || !Array.isArray(roomTypeIds) || roomTypeIds.length === 0 || !Array.isArray(dateKeys) || dateKeys.length === 0) {
+    return;
+  }
+
+  const uniqueRoomTypeIds = [...new Set(
+    roomTypeIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+  )];
+  if (uniqueRoomTypeIds.length === 0) return;
+
+  const uniqueDateKeys = [...new Set(dateKeys.map((d) => String(d)).filter(Boolean))].sort();
+  if (uniqueDateKeys.length === 0) return;
+
+  const [existingRows] = await conn.query(
+    'SELECT room_type_id, date FROM room_stock WHERE hotel_id = ? AND room_type_id IN (?) AND date >= ? AND date <= ?',
+    [hotelId, uniqueRoomTypeIds, uniqueDateKeys[0], uniqueDateKeys[uniqueDateKeys.length - 1]]
+  );
+  const existingSet = new Set((existingRows || []).map((r) => `${Number(r.room_type_id)}_${formatDateKey(r.date)}`));
+
+  const insertRows = [];
+  for (const roomTypeId of uniqueRoomTypeIds) {
+    for (const date of uniqueDateKeys) {
+      const key = `${roomTypeId}_${date}`;
+      if (!existingSet.has(key)) {
+        insertRows.push([hotelId, roomTypeId, date, totalCount, 0]);
+      }
+    }
+  }
+
+  if (insertRows.length > 0) {
+    await conn.query(
+      'INSERT INTO room_stock (hotel_id, room_type_id, date, total_count, booked_count) VALUES ?',
+      [insertRows]
+    );
+  }
+}
+
+async function backfillRoomStockForAllHotels() {
+  const [rows] = await dbPromise.query('SELECT id FROM hotels');
+  for (const row of rows || []) {
+    const hotelId = Number(row.id);
+    if (!hotelId) continue;
+    const roomTypeIds = await getRoomTypeIdsByHotel(dbPromise, hotelId);
+    await ensureRoomStockRows(dbPromise, hotelId, roomTypeIds);
+  }
+  console.log('[Stock] startup backfill completed');
 }
 
 // 管理员身份码
@@ -153,7 +249,7 @@ function deleteOSSFiles(client, urls) {
   if (!urls || !urls.length) return Promise.resolve();
   const keys = urls.map(urlToOSSObjectKey).filter(Boolean);
   if (keys.length === 0) return Promise.resolve();
-  console.log('[OSS] 即将删除', keys.length, '个文件');
+  console.log('[OSS] files to delete:', keys.length);
   return Promise.allSettled(keys.map((key) => client.delete(key)));
 }
 
@@ -176,6 +272,20 @@ function collectImageUrls(hotelRow, roomRows) {
   return [...new Set(list)];
 }
 
+function normalizeRoomTypesInput(roomTypes) {
+  if (!Array.isArray(roomTypes)) return [];
+  return roomTypes
+    .map((rt) => {
+      const name = rt?.name != null ? String(rt.name).trim() : '';
+      const price = Number(rt?.price);
+      if (!name || !Number.isFinite(price) || price < 0) return null;
+      const description = rt?.description != null && String(rt.description).trim() ? String(rt.description).trim() : null;
+      const image_url = rt?.image_url != null && String(rt.image_url).trim() ? String(rt.image_url).trim() : null;
+      return { name, price, description, image_url };
+    })
+    .filter(Boolean);
+}
+
 // ==========================================
 // 认证中间件
 // ==========================================
@@ -191,14 +301,14 @@ function authMiddleware(req, res, next) {
     req.user = { userId: decoded.userId, username: decoded.username, role: decoded.role };
     next();
   } catch (err) {
-    console.error('❌ JWT验证失败:', err.message);
-    return res.status(401).json({ success: false, message: '登录已过期，请重新登录' });
+    console.error('JWT验证失败:', err.message);
+    return res.status(401).json({ success: false, message: 'Login expired, please login again' });
   }
 }
 
 function adminMiddleware(req, res, next) {
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ success: false, message: '仅管理员可操作' });
+    return res.status(403).json({ success: false, message: 'Admin only' });
   }
   next();
 }
@@ -211,9 +321,9 @@ function adminMiddleware(req, res, next) {
  * 发送短信验证码 (合并 index.js 的实现)
  */
 app.post('/api/auth/sms/send', async (req, res) => {
-  console.log('收到发送短信请求:', req.body);
+  console.log('收到发送短信请求', req.body);
   let { phone } = req.body;
-  if (!phone) return res.status(400).send({ message: '手机号不能为空' });
+  if (!phone) return res.status(400).send({ message: 'Phone is required' });
   
   // 清洗手机号：
   // 1. 如果是 +86 开头的国内号码，去掉 +86
@@ -231,7 +341,7 @@ app.post('/api/auth/sms/send', async (req, res) => {
   if (record) {
     const now = Date.now();
     if (now - record.lastSentTime < 60 * 1000) {
-      return res.status(400).send({ message: '请勿频繁发送' });
+      return res.status(400).send({ message: 'Please do not request SMS too frequently' });
     }
   }
 
@@ -251,13 +361,13 @@ app.post('/api/auth/sms/send', async (req, res) => {
     const resp = await client.sendSmsVerifyCodeWithOptions(sendSmsVerifyCodeRequest, runtime);
     
     if (resp.body.code === 'OK') {
-      console.log('阿里云短信发送成功:', resp.body);
+      console.log('阿里云短信发送成功', resp.body);
       smsStore.set(phone, {
         code: code,
         expireTime: Date.now() + SMS_CODE_TTL_MS,
         lastSentTime: Date.now()
       });
-      res.send({ success: true, message: '验证码发送成功' });
+      res.send({ success: true, message: 'SMS sent successfully' });
     } else {
       console.error('Aliyun SMS Error:', resp.body);
       // 如果发送失败，返回真实错误信息
@@ -291,7 +401,7 @@ app.post('/api/auth/register', (req, res) => {
   phoneStr = phoneStr.replace(/\D/g, '');
 
   if (!username || !password || !role || !phoneStr || !smsStr) {
-    return res.status(400).json({ success: false, message: '请填写完整信息' });
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
 
   // 验证短信验证码
@@ -299,11 +409,11 @@ app.post('/api/auth/register', (req, res) => {
   if (smsStr !== '6666') {
     const rec = smsStore.get(phoneStr);
     if (!rec) {
-      // 兼容开发环境，如果store里没有，但验证码是8888也放行（方便测试）
+      // 兼容开发环境，如果store里没有，但验证码 8888 也放行（方便测试）
       if (smsStr === '8888') {
         // pass
       } else {
-        return res.status(400).json({ success: false, message: '请先获取验证码' });
+        return res.status(400).json({ success: false, message: 'Please request SMS code first' });
       }
     } else {
       if (Date.now() > rec.expireTime) {
@@ -311,7 +421,7 @@ app.post('/api/auth/register', (req, res) => {
         return res.status(400).json({ success: false, message: '验证码已过期' });
       }
       if (rec.code !== smsStr) {
-        return res.status(400).json({ success: false, message: '验证码错误' });
+        return res.status(400).json({ success: false, message: 'Invalid SMS code' });
       }
     }
   }
@@ -320,20 +430,20 @@ app.post('/api/auth/register', (req, res) => {
   db.query(checkSql, [username.trim()], (err, rows) => {
     if (err) {
       console.error('Check user error:', err);
-      return res.status(500).json({ success: false, message: '服务器错误' });
+      return res.status(500).json({ success: false, message: 'Server error' });
     }
-    if (rows.length > 0) return res.status(400).json({ success: false, message: '该账号已被注册' });
+    if (rows.length > 0) return res.status(400).json({ success: false, message: 'Username already exists' });
 
     const hashedPassword = bcrypt.hashSync(password, 10);
 
     // 管理员注册逻辑
     if (role === 'admin') {
       if (!roleCodeStr || !ADMIN_ROLE_CODES.has(roleCodeStr)) {
-        return res.status(400).json({ success: false, message: '身份码无效' });
+        return res.status(400).json({ success: false, message: 'Invalid role code' });
       }
       // 检查身份码是否已使用
       db.query("SELECT id FROM sys_users WHERE role='admin' AND role_code=?", [roleCodeStr], (errUsed, usedRows) => {
-        if (usedRows && usedRows.length > 0) return res.status(400).json({ success: false, message: '身份码已被使用' });
+        if (usedRows && usedRows.length > 0) return res.status(400).json({ success: false, message: 'Role code already used' });
         
         insertUser(username, hashedPassword, role, phoneStr, roleCodeStr, res);
       });
@@ -385,19 +495,19 @@ app.post('/api/auth/login', (req, res) => {
     const phoneStr = String(phone).trim();
     const smsStr = String(code).trim();
     
-    // 兼容开发环境，如果store里没有，但验证码是8888也放行（方便测试）
+    // 兼容开发环境，如果store里没有，但验证码 8888 也放行（方便测试）
     // 注意：这里需要确保在 !rec 的情况下也能处理 8888
     if (smsStr !== '6666' && smsStr !== '8888') {
       const rec = smsStore.get(phoneStr);
       console.log('SMS Code Verify:', { phone: phoneStr, input: smsStr, record: rec });
       
-      if (!rec) return res.status(400).json({ success: false, message: '请先获取验证码' });
+      if (!rec) return res.status(400).json({ success: false, message: 'Please request SMS code first' });
       if (Date.now() > rec.expireTime) {
         smsStore.delete(phoneStr);
         return res.status(400).json({ success: false, message: '验证码已过期' });
       }
       if (rec.code !== smsStr) {
-        return res.status(400).json({ success: false, message: '验证码错误' });
+        return res.status(400).json({ success: false, message: 'Invalid SMS code' });
       }
     } else {
        // 如果是 6666 或 8888，直接放行，不需要查 smsStore
@@ -422,7 +532,7 @@ app.post('/api/auth/login', (req, res) => {
            const userId = result.insertId;
            const token = jwt.sign({ userId, username: tempUsername, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
 
-           // 返回 is_new: true 引导设置密码，但也返回 token 让用户保持登录态
+           // 返回 is_new: true 引导设置密码，但也返token 让用户保持登录
            return res.json({ 
              success: true, 
              is_new: true, 
@@ -448,8 +558,8 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   // 2. 密码登录 (原有逻辑)
-  if (!username && !phone) return res.status(400).json({ success: false, message: '请输入账号' });
-  if (!password) return res.status(400).json({ success: false, message: '请输入密码' });
+  if (!username && !phone) return res.status(400).json({ success: false, message: 'Username or phone is required' });
+  if (!password) return res.status(400).json({ success: false, message: 'Password is required' });
 
   // 支持手机号或用户名登录
   const loginKey = username || phone;
@@ -460,11 +570,11 @@ app.post('/api/auth/login', (req, res) => {
   db.query(sql, [loginKey, loginKey], (err, rows) => {
     if (err) {
         console.error('[Login] DB Error:', err);
-        return res.status(500).json({ success: false, message: '服务器错误' });
+        return res.status(500).json({ success: false, message: 'Server error' });
     }
     if (rows.length === 0) {
         console.log('[Login] User not found');
-        return res.status(401).json({ success: false, message: '账号或密码错误' });
+        return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
     
     const user = rows[0];
@@ -473,7 +583,7 @@ app.post('/api/auth/login', (req, res) => {
     console.log(`[Login] User found: ${user.username}, ID: ${user.id}, Password Match: ${isMatch}`);
     
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: '账号或密码错误' });
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
@@ -491,51 +601,51 @@ app.post('/api/auth/setup-account', (req, res) => {
   const { phone, username, password } = req.body;
   // 这里可以复用注册逻辑，或者单独写 UPDATE/INSERT
   // ...
-  // 为简单起见，假设前端Setup页面调用的是这个接口来完成最终注册入库
+  // 为简单起见，假设前端Setup页面调用的是这个接口来完成最终注册入口
   // 但要注意 mobile 代码里调用的是 /user/setup-account，这里需要匹配
   res.redirect(307, '/api/auth/register'); 
-  // 或者真正实现它，这里为了不破坏现有结构，建议前端直接调 register 接口，
-  // 但 mobile 代码里写的是 setup-account。
-  // 让我们实现它：
+  // 或者真正实现它，这里为了不破坏现有结构，建议前端直接调 register 接口
+  // 但 mobile 代码里写的是 setup-account
+  // 让我们实现它
 });
 
 app.post('/api/user/setup-account', (req, res) => {
-   // 实际上 mobile/src/pages/login/setup/index.tsx 调用的是 /user/setup-account
+   // 实际 mobile/src/pages/login/setup/index.tsx 调用的是 /user/setup-account
    // 我们需要在这里实现它，或者在路由上做映射
    // 逻辑：用户已通过手机验证，现在来设置用户名和密码
-   // 检查手机号是否已存在（理论上上一步登录时已检查不存在）
+   // 检查手机号是否已存在（理论上上一步登录时已检查不存在
    // 插入新用户
    const { phone, username, password } = req.body;
-   // ... 略 ... 
-   // 鉴于时间，我建议直接让 mobile 端复用 /api/auth/register 接口，或者在这里简单实现插入
+   // ...
+   // 鉴于时间，我建议直接在 mobile 端复用 /api/auth/register 接口，或者在这里简单实现插入
    
    if (!username || !password) return res.status(400).json({ success: false, message: '信息不全' });
    
-   // 从请求体获取 phone，如果前端没传 phone，可能是个问题。
-   // mobile端传的是 { userId, username, password }，没有 phone。
-   // 必须根据 userId 查到 phone，或者前端传过来。
+   // 从请求体获取 phone，如果前端没传 phone，可能是个问题
+   // mobile端传的是 { userId, username, password }，没传 phone
+   // 必须根据 userId 查到 phone，或者前端传过来
    // mobile 代码里：Taro.navigateTo({ url: `/pages/login/setup/index?userId=${res.id}&phone=${res.phone}` })
    // Setup页：const { userId, phone } = router.params
    // Setup提交：post('/user/setup-account', { userId: Number(userId), username, password })
    // 发现前端并没有传 phone 给后端！
    
-   // 所以这里我们只能 update 用户信息（如果之前已经预创建了）
-   // 或者前端修改传参。
+   // 所以这里我们只做 update 用户信息（如果之前已经预创建了）
+   // 或者前端修改传参
    
-   // 假设之前登录时没创建用户，只是返回了 is_new。
-   // 那现在必须创建。但是没有 phone。
+   // 假设之前登录时没创建用户，只是返回了 is_new
+   // 那现在必须创建。但是没传 phone
    // 
-   // 修正方案：修改 mobile 端代码，把 phone 也传给后端。
-   // 但我不能改 mobile 代码（除非用户要求），所以我先假设前端会传，或者我在后端做个临时处理。
+   // 修正方案：修改 mobile 端代码，把 phone 也传给后端
+   // 但我不能改 mobile 代码（除非用户要求），所以我先假设前端会传，或者我在后端做个临时处理
    // 
    // 等等，mobile 代码我看过：
    // const { userId, phone } = router.params
    // post('/user/setup-account', { userId: Number(userId), username, password })
-   // 确实没传 phone。
+   // 确实没传 phone
    
-   // 既然如此，我修改后端逻辑：
-   // 1. 登录时，如果用户不存在，先创建一个“临时用户”（无密码，或随机密码），返回 userId。
-   // 2. Setup 时，根据 userId 更新 username 和 password。
+   // 既然如此，我修改后端逻辑
+   // 1. 登录时，如果用户不存在，先创建一个“临时用户”（无密码，或随机密码），返回 userId
+   // 2. Setup 时，根据 userId 更新 username 和 password
    
    // 修改 /api/auth/login 的逻辑
    
@@ -591,6 +701,10 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
       res.json({ success: true, user: userData });
     }
   );
+  db.query('SELECT id, username, role, avatar, phone, role_code FROM sys_users WHERE id = ?', [req.user.userId], (err, rows) => {
+    if (err || rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, user: rows[0] });
+  });
 });
 
 /**
@@ -605,7 +719,7 @@ app.patch('/api/auth/me', authMiddleware, (req, res) => {
   if (avatar !== undefined) { sets.push('avatar = ?'); values.push(avatar); }
   if (password) { sets.push('password = ?'); values.push(bcrypt.hashSync(password, 10)); }
 
-  if (sets.length === 0) return res.status(400).json({ success: false, message: '无更新内容' });
+  if (sets.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
 
   values.push(req.user.userId);
   db.query(`UPDATE sys_users SET ${sets.join(', ')} WHERE id = ?`, values, (err) => {
@@ -639,45 +753,111 @@ app.get('/api/banners', (req, res) => {
 });
 
 // 酒店搜索
-app.get('/api/hotels', (req, res) => {
-  const { city_name } = req.query;
-  let sql = 'SELECT h.*, h.price as min_price, h.image_url as main_image FROM hotels h';
-  let values = [];
-  let whereClauses = ['h.status = 1']; // 仅显示已发布的
+app.get('/api/hotels', async (req, res) => {
+  try {
+    const { city_name, keyword, check_in_date, check_out_date } = req.query;
+    const whereClauses = ['h.status = 1'];
+    const params = [];
+    if (city_name) {
+      whereClauses.push('h.city LIKE ?');
+      params.push(`%${city_name}%`);
+    }
+    if (keyword) {
+      whereClauses.push('(h.name LIKE ? OR h.address LIKE ? OR h.tags LIKE ?)');
+      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
 
-  if (city_name) {
-    whereClauses.push('h.city LIKE ?');
-    values.push(`%${city_name}%`);
-  }
+    const sql = [
+      'SELECT h.*, COALESCE(MIN(rt.price), h.price, 0) AS min_price, h.image_url AS main_image',
+      'FROM hotels h',
+      'LEFT JOIN room_types rt ON rt.hotel_id = h.id',
+      `WHERE ${whereClauses.join(' AND ')}`,
+      'GROUP BY h.id',
+      'ORDER BY h.create_time DESC'
+    ].join(' ');
 
-  if (whereClauses.length > 0) {
-    sql += ' WHERE ' + whereClauses.join(' AND ');
-  }
-  
-  db.query(sql, values, (err, results) => {
-    if (err) return res.status(500).send({ message: '查询酒店失败', error: err });
-    
-    const enhancedResults = results.map(h => ({
+    const [rows] = await dbPromise.query(sql, params);
+    let hotels = (rows || []).map((h) => ({
       ...h,
-      score: (h.star_level * 0.1 + 4.3).toFixed(1), 
+      score: Number((Number(h.star_level || 0) * 0.1 + 4.3).toFixed(1)),
       review_count: Math.floor(Math.random() * 1000) + 50,
-      brand: h.tags ? h.tags.split(',')[0] : '精选',
-      tags: h.tags ? h.tags.split(',') : []
+      brand: h.tags ? String(h.tags).split(',')[0] : '精选酒店',
+      tags: h.tags ? String(h.tags).split(',').map((x) => x.trim()).filter(Boolean) : [],
     }));
 
-    res.send(enhancedResults);
-  });
+    if (check_in_date && check_out_date && hotels.length > 0) {
+      const stayDates = buildStayDates(String(check_in_date), String(check_out_date));
+      if (stayDates.length > 0) {
+        const hotelIds = hotels.map((h) => h.id);
+        const [roomRows] = await dbPromise.query(
+          'SELECT id, hotel_id, name, price FROM room_types WHERE hotel_id IN (?)',
+          [hotelIds]
+        );
+
+        if ((roomRows || []).length === 0) return res.send([]);
+
+        const roomByHotel = new Map();
+        roomRows.forEach((rt) => {
+          if (!roomByHotel.has(rt.hotel_id)) roomByHotel.set(rt.hotel_id, []);
+          roomByHotel.get(rt.hotel_id).push(rt);
+        });
+
+        for (const hotel of hotels) {
+          const roomIds = (roomByHotel.get(hotel.id) || []).map((r) => Number(r.id)).filter(Boolean);
+          if (roomIds.length > 0) {
+            await ensureRoomStockRows(dbPromise, hotel.id, roomIds, DEFAULT_ROOM_TOTAL_COUNT, stayDates);
+          }
+        }
+
+        const [stockRows] = await dbPromise.query(
+          'SELECT hotel_id, room_type_id, date, total_count, booked_count FROM room_stock WHERE hotel_id IN (?) AND date >= ? AND date < ?',
+          [hotelIds, stayDates[0], String(check_out_date)]
+        );
+
+        const stockMap = new Map();
+        stockRows.forEach((s) => {
+          const key = `${s.hotel_id}_${s.room_type_id}_${formatDateKey(s.date)}`;
+          stockMap.set(key, s);
+        });
+
+        hotels = hotels.filter((hotel) => {
+          const rooms = roomByHotel.get(hotel.id) || [];
+          let available = false;
+          let bestRemain = 0;
+
+          rooms.forEach((room) => {
+            let ok = true;
+            let minRemain = Number.MAX_SAFE_INTEGER;
+            for (const d of stayDates) {
+              const stock = stockMap.get(`${hotel.id}_${room.id}_${d}`);
+              if (!stock) {
+                ok = false;
+                break;
+              }
+              const remain = Number(stock.total_count || 0) - Number(stock.booked_count || 0);
+              if (remain <= 0) {
+                ok = false;
+                break;
+              }
+              minRemain = Math.min(minRemain, remain);
+            }
+            if (ok) {
+              available = true;
+              bestRemain = bestRemain === 0 ? minRemain : Math.min(bestRemain, minRemain);
+            }
+          });
+
+          hotel.available_stock = available ? bestRemain : 0;
+          return available;
+        });
+      }
+    }
+
+    res.send(hotels);
+  } catch (err) {
+    res.status(500).send({ message: '查询酒店失败', error: err.message });
+  }
 });
-
-// 酒店详情 (公共)
-// 注意：将此路由定义移到 /api/hotels/my 之后，或者确保 /api/hotels/my 在它之前注册。
-// 目前 /api/hotels/my 在 L668，这会导致冲突。
-// 解决方案：移动 /api/hotels/my 到此处之前。
-
-// ==========================================
-// API 接口：商户系统 (移动至此以解决路由冲突)
-// ==========================================
-
 app.get('/api/hotels/my', authMiddleware, (req, res) => {
   if (req.user.role !== 'merchant' && req.user.role !== 'admin') {
     return res.status(403).json({ success: false, message: '权限不足' });
@@ -697,50 +877,90 @@ app.get('/api/hotels/my', authMiddleware, (req, res) => {
   });
 });
 
-app.get('/api/hotels/:id', (req, res) => {
-  const hotelId = req.params.id;
-  // 如果请求的是 /api/hotels/my，说明顺序还是有问题，或者未登录被 authMiddleware 拦截？
-  // authMiddleware 会返回 401，不会走到这里。
-  // 如果是 404，可能是数据库查不到 'my' 这个 id。
-  
-  const hotelSql = 'SELECT *, price as min_price, image_url as main_image FROM hotels WHERE id = ?';
-  const roomsSql = 'SELECT * FROM room_types WHERE hotel_id = ?';
-
-  db.query(hotelSql, [hotelId], (err, hotels) => {
-    if (err) return res.status(500).send(err);
-    if (hotels.length === 0) return res.status(404).send({ message: '酒店不存在' });
-
-    const hotel = hotels[0];
-    hotel.score = (hotel.star_level * 0.1 + 4.3).toFixed(1);
+app.get('/api/hotels/:id', async (req, res) => {
+  try {
+    const hotelId = Number(req.params.id);
+    const checkIn = String(req.query.check_in_date || formatDateKey(new Date()));
+    const checkOut = String(req.query.check_out_date || formatDateKey(new Date(Date.now() + 24 * 3600 * 1000)));
+    const stayDates = buildStayDates(checkIn, checkOut);
+    const [hotelRows] = await dbPromise.query(
+      'SELECT *, price as min_price, image_url as main_image FROM hotels WHERE id = ?',
+      [hotelId]
+    );
+    if (!hotelRows || hotelRows.length === 0) {
+      return res.status(404).send({ message: '酒店不存在' });
+    }
+    const hotel = hotelRows[0];
+    hotel.score = Number((Number(hotel.star_level || 0) * 0.1 + 4.3).toFixed(1));
     hotel.review_count = Math.floor(Math.random() * 1000) + 50;
-    hotel.brand = hotel.tags ? hotel.tags.split(',')[0] : '精选';
-    hotel.tags = hotel.tags ? hotel.tags.split(',') : [];
-
-    db.query(roomsSql, [hotelId], (err, rooms) => {
-      if (err) return res.status(500).send(err);
-      
-      hotel.images = [hotel.main_image];
-      const formattedRooms = rooms.map(r => ({
+    hotel.brand = hotel.tags ? String(hotel.tags).split(',')[0] : '精选酒店';
+    hotel.tags = hotel.tags ? String(hotel.tags).split(',').map((x) => x.trim()).filter(Boolean) : [];
+    const [rooms] = await dbPromise.query('SELECT * FROM room_types WHERE hotel_id = ?', [hotelId]);
+    const roomIds = (rooms || []).map((r) => r.id);
+    let stockRows = [];
+    if (roomIds.length > 0 && stayDates.length > 0) {
+      await ensureRoomStockRows(dbPromise, hotelId, roomIds, DEFAULT_ROOM_TOTAL_COUNT, stayDates);
+      const [stocks] = await dbPromise.query(
+        'SELECT hotel_id, room_type_id, date, total_count, booked_count FROM room_stock WHERE hotel_id = ? AND room_type_id IN (?) AND date >= ? AND date < ?',
+        [hotelId, roomIds, stayDates[0], checkOut]
+      );
+      stockRows = stocks || [];
+    }
+    const stockMap = new Map();
+    stockRows.forEach((s) => {
+      stockMap.set(`${s.hotel_id}_${s.room_type_id}_${formatDateKey(s.date)}`, s);
+    });
+    hotel.images = [hotel.main_image].filter(Boolean);
+    const formattedRooms = (rooms || []).map((r) => {
+      let remainCount = 0;
+      if (stayDates.length > 0) {
+        let ok = true;
+        let minRemain = Number.MAX_SAFE_INTEGER;
+        for (const d of stayDates) {
+          const stock = stockMap.get(`${hotelId}_${r.id}_${d}`);
+          if (!stock) {
+            ok = false;
+            break;
+          }
+          const remain = Number(stock.total_count || 0) - Number(stock.booked_count || 0);
+          if (remain <= 0) {
+            ok = false;
+            break;
+          }
+          minRemain = Math.min(minRemain, remain);
+        }
+        remainCount = ok ? minRemain : 0;
+      }
+      return {
         id: r.id,
         name: r.name,
-        area: '30㎡', 
+        description: r.description || '',
+        image_url: r.image_url || hotel.main_image || '',
+        area: '30㎡',
         max_guests: 2,
-        plans: [{
-          id: r.id, 
-          name: '标准价',
-          breakfast: 1, 
-          cancel_policy: 1, 
-          price: r.price
-        }]
-      }));
-      
-      hotel.rooms = formattedRooms;
-      res.send(hotel);
+        remain_count: remainCount,
+        sold_out: remainCount <= 0,
+        plans: [
+          {
+            id: r.id,
+            name: r.name,
+            breakfast: 1,
+            cancel_policy: 1,
+            price: Number(r.price || 0),
+            remain_count: remainCount,
+            sold_out: remainCount <= 0,
+          },
+        ],
+      };
     });
-  });
+    hotel.rooms = formattedRooms;
+    hotel.check_in_date = checkIn;
+    hotel.check_out_date = checkOut;
+    res.send(hotel);
+  } catch (err) {
+    res.status(500).send({ message: '查询酒店详情失败', error: err.message });
+  }
 });
-
-// 收藏相关 (index.js)
 app.post('/api/favorites/add', (req, res) => {
   const { user_id, hotel_id } = req.body;
   if (!user_id || !hotel_id) return res.status(400).send({ message: '参数缺失' });
@@ -753,7 +973,7 @@ app.post('/api/favorites/add', (req, res) => {
       console.error('[Favorites Add] Query Error:', err);
       return res.status(500).send(err);
     }
-    if (rows.length === 0) return res.status(404).send({ message: '用户不存在' });
+    if (rows.length === 0) return res.status(404).send({ message: 'User not found' });
     
     let favs = [];
     try {
@@ -785,7 +1005,7 @@ app.post('/api/favorites/add', (req, res) => {
       });
     } else {
       console.log(`[Favorites Add] Hotel ${hId} already in favorites for user ${user_id}`);
-      res.send({ success: true, message: '已存在' });
+      res.send({ success: true, message: 'Already exists' });
     }
   });
 });
@@ -907,32 +1127,274 @@ app.get('/api/user/:id/coupons', (req, res) => {
 
 // 创建订单 (使用 index.js 的丰富字段)
 app.post('/api/bookings/create', (req, res) => {
-  const { user_id, user_name, user_phone, user_id_card, hotel_id, hotel_name, room_type_name, check_in_date, check_out_date, total_price } = req.body;
-  const sql = `INSERT INTO bookings (user_id, user_name, user_phone, user_id_card, hotel_id, hotel_name, room_type_name, check_in_date, check_out_date, total_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`;
-  const values = [user_id, user_name, user_phone, user_id_card, hotel_id, hotel_name, room_type_name || '标准房', check_in_date, check_out_date, total_price];
-  
-  db.query(sql, values, (err, result) => {
-    if (err) return res.status(500).send({ message: '预订失败', error: err.message });
-    res.send({ success: true, message: '预订成功！', orderId: result.insertId });
+  const {
+    user_id,
+    user_name,
+    user_phone,
+    user_id_card,
+    hotel_id,
+    hotel_name,
+    room_type_id,
+    room_type_name,
+    room_count,
+    check_in_date,
+    check_out_date,
+    total_price,
+  } = req.body;
+  const hotelIdNum = Number(hotel_id);
+  const roomTypeIdNum = room_type_id ? Number(room_type_id) : null;
+  const roomCountNum = Math.max(1, Number(room_count || 1));
+  const stayDates = buildStayDates(String(check_in_date || ''), String(check_out_date || ''));
+  const checkOutDateStr = String(check_out_date || '');
+  if (!user_name || !user_phone || !user_id_card || !hotelIdNum || stayDates.length === 0) {
+    return res.status(400).send({ message: '参数缺失或入住离店日期非法' });
+  }
+  db.getConnection((connErr, conn) => {
+    if (connErr) return res.status(500).send({ message: '数据库连接失败', error: connErr.message });
+    const rollbackAndEnd = (status, payload) => {
+      conn.rollback(() => {
+        conn.release();
+        res.status(status).send(payload);
+      });
+    };
+    conn.beginTransaction((txErr) => {
+      if (txErr) {
+        conn.release();
+        return res.status(500).send({ message: '开启事务失败', error: txErr.message });
+      }
+      const resolveRoomType = (done) => {
+        if (roomTypeIdNum) {
+          conn.query(
+            'SELECT id, name, price FROM room_types WHERE id = ? AND hotel_id = ? LIMIT 1',
+            [roomTypeIdNum, hotelIdNum],
+            (e, rows) => done(e, rows && rows[0])
+          );
+          return;
+        }
+        if (room_type_name) {
+          conn.query(
+            'SELECT id, name, price FROM room_types WHERE hotel_id = ? AND name = ? LIMIT 1',
+            [hotelIdNum, room_type_name],
+            (e, rows) => {
+              if (e) return done(e);
+              if (rows && rows[0]) return done(null, rows[0]);
+              conn.query(
+                'SELECT id, name, price FROM room_types WHERE hotel_id = ? ORDER BY price ASC LIMIT 1',
+                [hotelIdNum],
+                (e2, rows2) => done(e2, rows2 && rows2[0])
+              );
+            }
+          );
+          return;
+        }
+        conn.query(
+          'SELECT id, name, price FROM room_types WHERE hotel_id = ? ORDER BY price ASC LIMIT 1',
+          [hotelIdNum],
+          (e, rows) => done(e, rows && rows[0])
+        );
+      };
+      resolveRoomType((roomErr, roomType) => {
+        if (roomErr) return rollbackAndEnd(500, { message: '查询房型失败', error: roomErr.message });
+        if (!roomType) return rollbackAndEnd(400, { message: '未找到可预订房型' });
+
+        const lockAndBook = () => {
+          conn.query(
+            'SELECT id, date, total_count, booked_count FROM room_stock WHERE hotel_id = ? AND room_type_id = ? AND date >= ? AND date < ? FOR UPDATE',
+            [hotelIdNum, roomType.id, stayDates[0], checkOutDateStr],
+            (stockErr, stockRows) => {
+              if (stockErr) return rollbackAndEnd(500, { message: '查询库存失败', error: stockErr.message });
+              const stockMap = new Map();
+              (stockRows || []).forEach((s) => stockMap.set(formatDateKey(s.date), s));
+              for (const d of stayDates) {
+                const stock = stockMap.get(d);
+                if (!stock) {
+                  return rollbackAndEnd(400, { message: `日期 ${d} 无可用库存` });
+                }
+                const remain = Number(stock.total_count || 0) - Number(stock.booked_count || 0);
+                if (remain < roomCountNum) {
+                  return rollbackAndEnd(400, { message: `日期 ${d} 库存不足` });
+                }
+              }
+              const stockIds = (stockRows || []).map((s) => s.id);
+              conn.query(
+                'UPDATE room_stock SET booked_count = booked_count + ? WHERE id IN (?)',
+                [roomCountNum, stockIds],
+                (upErr) => {
+                  if (upErr) return rollbackAndEnd(500, { message: '更新库存失败', error: upErr.message });
+                  const nights = stayDates.length;
+                  const roomPrice = Number(roomType.price || 0);
+                  const finalTotal = Number(total_price) > 0 ? Number(total_price) : roomPrice * nights * roomCountNum;
+                  const roomTypeNameFinal = room_type_name || roomType.name || '标准间';
+                  const insertSql = `
+                    INSERT INTO bookings (
+                      user_id, user_name, user_phone, user_id_card,
+                      hotel_id, hotel_name, room_type_name,
+                      check_in_date, check_out_date, total_price, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                  `;
+                  const insertValues = [
+                    user_id || null,
+                    user_name,
+                    user_phone,
+                    user_id_card,
+                    hotelIdNum,
+                    hotel_name || '',
+                    roomTypeNameFinal,
+                    check_in_date,
+                    check_out_date,
+                    finalTotal,
+                  ];
+                  conn.query(insertSql, insertValues, (insErr, result) => {
+                    if (insErr) return rollbackAndEnd(500, { message: '创建订单失败', error: insErr.message });
+                    conn.commit((commitErr) => {
+                      if (commitErr) return rollbackAndEnd(500, { message: '事务提交失败', error: commitErr.message });
+                      conn.release();
+                      res.send({
+                        success: true,
+                        message: '预订成功',
+                        orderId: result.insertId,
+                        room_type_id: roomType.id,
+                        room_type_name: roomTypeNameFinal,
+                      });
+                    });
+                  });
+                }
+              );
+            }
+          );
+        };
+
+        conn.query(
+          'SELECT date FROM room_stock WHERE hotel_id = ? AND room_type_id = ? AND date >= ? AND date < ?',
+          [hotelIdNum, roomType.id, stayDates[0], checkOutDateStr],
+          (preErr, preRows) => {
+            if (preErr) return rollbackAndEnd(500, { message: '查询库存失败', error: preErr.message });
+            const existingDateSet = new Set((preRows || []).map((r) => formatDateKey(r.date)));
+            const missingRows = stayDates
+              .filter((d) => !existingDateSet.has(d))
+              .map((d) => [hotelIdNum, roomType.id, d, DEFAULT_ROOM_TOTAL_COUNT, 0]);
+
+            if (missingRows.length === 0) return lockAndBook();
+            conn.query(
+              'INSERT INTO room_stock (hotel_id, room_type_id, date, total_count, booked_count) VALUES ?',
+              [missingRows],
+              (insStockErr) => {
+                if (insStockErr) return rollbackAndEnd(500, { message: '初始化库存失败', error: insStockErr.message });
+                lockAndBook();
+              }
+            );
+          }
+        );
+      });
+    });
   });
 });
-
-// 订单列表 (保留 index.js 的手机号过滤)
 app.get('/api/bookings/my-list', (req, res) => {
   const { phone } = req.query;
   if (!phone) return res.send([]);
-  
-  const sql = 'SELECT * FROM bookings WHERE user_phone = ? ORDER BY create_time DESC';
+
+  const sql = `
+    SELECT b.*, h.image_url AS hotel_image
+    FROM bookings b
+    LEFT JOIN hotels h ON h.id = b.hotel_id
+    WHERE b.user_phone = ?
+    ORDER BY b.create_time DESC, b.id DESC
+  `;
+
   db.query(sql, [phone], (err, results) => {
-    if (err) return res.status(500).send('查询失败');
-    res.send(results);
+    if (err) return res.status(500).send({ message: '查询失败', error: err.message });
+    res.send(results || []);
   });
 });
+app.post('/api/bookings/:id/cancel', (req, res) => {
+  const bookingId = Number(req.params.id);
+  if (!bookingId) return res.status(400).send({ message: '订单ID无效' });
+  db.getConnection((connErr, conn) => {
+    if (connErr) return res.status(500).send({ message: '数据库连接失败', error: connErr.message });
 
-// ==========================================
-// API 接口：商户系统 (index1.js)
-// ==========================================
+    const rollbackAndEnd = (status, payload) => {
+      conn.rollback(() => {
+        conn.release();
+        res.status(status).send(payload);
+      });
+    };
 
+    conn.beginTransaction((txErr) => {
+      if (txErr) {
+        conn.release();
+        return res.status(500).send({ message: '开启事务失败', error: txErr.message });
+      }
+
+      conn.query(
+        'SELECT id, hotel_id, room_type_name, check_in_date, check_out_date, total_price, status FROM bookings WHERE id = ? FOR UPDATE',
+        [bookingId],
+        (queryErr, rows) => {
+          if (queryErr) return rollbackAndEnd(500, { message: '查询订单失败', error: queryErr.message });
+          if (!rows || rows.length === 0) return rollbackAndEnd(404, { message: '订单不存在' });
+
+          const booking = rows[0];
+          if (![0, 1].includes(Number(booking.status))) {
+            return rollbackAndEnd(400, { message: '当前状态不可取消' });
+          }
+
+          const stayDates = buildStayDates(formatDateKey(booking.check_in_date), formatDateKey(booking.check_out_date));
+          const checkOut = formatDateKey(booking.check_out_date);
+
+          const finalizeCancel = () => {
+            conn.query('UPDATE bookings SET status = 2 WHERE id = ?', [bookingId], (upErr) => {
+              if (upErr) return rollbackAndEnd(500, { message: '取消失败', error: upErr.message });
+              conn.commit((commitErr) => {
+                if (commitErr) return rollbackAndEnd(500, { message: '事务提交失败', error: commitErr.message });
+                conn.release();
+                res.send({ success: true, message: '订单已取消' });
+              });
+            });
+          };
+
+          if (!booking.room_type_name || stayDates.length === 0) {
+            return finalizeCancel();
+          }
+
+          conn.query(
+            'SELECT id, price FROM room_types WHERE hotel_id = ? AND name = ? ORDER BY id ASC LIMIT 1',
+            [booking.hotel_id, booking.room_type_name],
+            (rtErr, rtRows) => {
+              if (rtErr) return rollbackAndEnd(500, { message: '查询房型失败', error: rtErr.message });
+              if (!rtRows || rtRows.length === 0) return finalizeCancel();
+
+              const roomType = rtRows[0];
+              const nights = Math.max(1, stayDates.length);
+              const roomPrice = Number(roomType.price || 0);
+              let restoreCount = 1;
+              if (roomPrice > 0 && Number(booking.total_price || 0) > 0) {
+                restoreCount = Math.max(1, Math.round(Number(booking.total_price) / (roomPrice * nights)));
+              }
+
+              conn.query(
+                'SELECT id FROM room_stock WHERE hotel_id = ? AND room_type_id = ? AND date >= ? AND date < ? FOR UPDATE',
+                [booking.hotel_id, roomType.id, stayDates[0], checkOut],
+                (stockErr, stockRows) => {
+                  if (stockErr) return rollbackAndEnd(500, { message: '查询库存失败', error: stockErr.message });
+                  const stockIds = (stockRows || []).map((x) => x.id);
+                  if (stockIds.length === 0) return finalizeCancel();
+
+                  conn.query(
+                    'UPDATE room_stock SET booked_count = GREATEST(booked_count - ?, 0) WHERE id IN (?)',
+                    [restoreCount, stockIds],
+                    (rbErr) => {
+                      if (rbErr) return rollbackAndEnd(500, { message: '回滚库存失败', error: rbErr.message });
+                      finalizeCancel();
+                    }
+                  );
+                }
+              );
+            }
+          );
+        }
+      );
+    });
+  });
+});
 app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: '请选择要上传的图片' });
   const client = getOSSClient();
@@ -954,37 +1416,46 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
 // (Moved to above /api/hotels/:id)
 // app.get('/api/hotels/my', ...)
 
-app.post('/api/hotels', authMiddleware, (req, res) => {
+app.post('/api/hotels', authMiddleware, async (req, res) => {
   if (req.user.role !== 'merchant') return res.status(403).json({ success: false, message: '仅商户可发布' });
   const { name, city, address, phone, price, star_level, tags, image_url, description, roomTypes } = req.body;
-  
-  const sql = `INSERT INTO hotels (merchant_id, name, city, address, phone, price, star_level, tags, image_url, description, status, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())`;
-  const values = [req.user.userId, name, city, address, phone, price, star_level, tags, image_url, description];
-  
-  db.query(sql, values, (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: err.message });
-    
+  const normalizedRoomTypes = normalizeRoomTypesInput(roomTypes);
+  if (normalizedRoomTypes.length === 0) {
+    return res.status(400).json({ success: false, message: '请至少提交一个有效房型' });
+  }
+
+  const conn = await dbPromise.getConnection();
+  try {
+    await conn.beginTransaction();
+    const sql = `INSERT INTO hotels (merchant_id, name, city, address, phone, price, star_level, tags, image_url, description, status, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())`;
+    const values = [req.user.userId, name, city, address, phone, price, star_level, tags, image_url, description];
+    const [result] = await conn.query(sql, values);
     const hotelId = result.insertId;
-    if (roomTypes && roomTypes.length > 0) {
-      const rtSql = 'INSERT INTO room_types (hotel_id, name, price, description, image_url) VALUES ?';
-      const rtValues = roomTypes.map(rt => [hotelId, rt.name, rt.price, rt.description, rt.image_url]);
-      db.query(rtSql, [rtValues], (errRt) => {
-        if (errRt) console.error('房型插入失败', errRt);
-        res.json({ success: true, message: '发布成功', hotelId });
-      });
-    } else {
-      res.json({ success: true, message: '发布成功', hotelId });
-    }
-  });
+
+    const rtSql = 'INSERT INTO room_types (hotel_id, name, price, description, image_url) VALUES ?';
+    const rtValues = normalizedRoomTypes.map((rt) => [hotelId, rt.name, rt.price, rt.description, rt.image_url]);
+    await conn.query(rtSql, [rtValues]);
+
+    const roomTypeIds = await getRoomTypeIdsByHotel(conn, hotelId);
+    await ensureRoomStockRows(conn, hotelId, roomTypeIds);
+
+    await conn.commit();
+    res.json({ success: true, message: '发布成功', hotelId });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
 });
 
-// 商户查看酒店详情 (重命名为 /api/merchant/hotels/:id 以区分公共接口)
+// 商户查看酒店详情 (重命名为 /api/merchant/hotels/:id 以区分公共接口
 app.get('/api/merchant/hotels/:id', authMiddleware, (req, res) => {
   if (req.user.role !== 'merchant') return res.status(403).json({ success: false, message: '仅商户可查看' });
   const id = req.params.id;
   
   db.query('SELECT * FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId], (err, rows) => {
-    if (err || rows.length === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+    if (err || rows.length === 0) return res.status(404).json({ success: false, message: 'Hotel not found' });
     const hotel = rows[0];
     db.query('SELECT * FROM room_types WHERE hotel_id = ?', [id], (errRt, roomRows) => {
       res.json({ ...hotel, roomTypes: roomRows || [] });
@@ -992,59 +1463,89 @@ app.get('/api/merchant/hotels/:id', authMiddleware, (req, res) => {
   });
 });
 
-app.put('/api/hotels/:id', authMiddleware, (req, res) => {
+app.put('/api/hotels/:id', authMiddleware, async (req, res) => {
   if (req.user.role !== 'merchant') return res.status(403).json({ success: false, message: '仅商户可操作' });
-  const id = req.params.id;
+  const id = Number(req.params.id);
   const { name, city, address, phone, price, star_level, tags, image_url, description, roomTypes } = req.body;
-  
-  const sql = `UPDATE hotels SET name=?, city=?, address=?, phone=?, price=?, star_level=?, tags=?, image_url=?, description=?, status=0 WHERE id=? AND merchant_id=?`;
-  const values = [name, city, address, phone, price, star_level, tags, image_url, description, id, req.user.userId];
-  
-  db.query(sql, values, (err) => {
-    if (err) return res.status(500).json({ success: false, message: err.message });
-    
-    // 更新房型：先删后加
-    db.query('DELETE FROM room_types WHERE hotel_id = ?', [id], () => {
-      if (roomTypes && roomTypes.length > 0) {
-        const rtSql = 'INSERT INTO room_types (hotel_id, name, price, description, image_url) VALUES ?';
-        const rtValues = roomTypes.map(rt => [id, rt.name, rt.price, rt.description, rt.image_url]);
-        db.query(rtSql, [rtValues], () => {
-          res.json({ success: true, message: '更新成功' });
-        });
-      } else {
-        res.json({ success: true, message: '更新成功' });
-      }
-    });
-  });
+  const normalizedRoomTypes = normalizeRoomTypesInput(roomTypes);
+  if (normalizedRoomTypes.length === 0) {
+    return res.status(400).json({ success: false, message: '请至少提交一个有效房型' });
+  }
+
+  const conn = await dbPromise.getConnection();
+  try {
+    await conn.beginTransaction();
+    const oldRoomTypeIds = await getRoomTypeIdsByHotel(conn, id);
+
+    const sql = `UPDATE hotels SET name=?, city=?, address=?, phone=?, price=?, star_level=?, tags=?, image_url=?, description=?, status=0 WHERE id=? AND merchant_id=?`;
+    const values = [name, city, address, phone, price, star_level, tags, image_url, description, id, req.user.userId];
+    const [updateResult] = await conn.query(sql, values);
+    if (!updateResult || updateResult.affectedRows === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Hotel not found' });
+    }
+
+    const today = formatDateKey(new Date());
+    if (oldRoomTypeIds.length > 0) {
+      await conn.query(
+        'DELETE FROM room_stock WHERE hotel_id = ? AND room_type_id IN (?) AND date >= ?',
+        [id, oldRoomTypeIds, today]
+      );
+    }
+
+    await conn.query('DELETE FROM room_types WHERE hotel_id = ?', [id]);
+    const rtSql = 'INSERT INTO room_types (hotel_id, name, price, description, image_url) VALUES ?';
+    const rtValues = normalizedRoomTypes.map((rt) => [id, rt.name, rt.price, rt.description, rt.image_url]);
+    await conn.query(rtSql, [rtValues]);
+
+    const newRoomTypeIds = await getRoomTypeIdsByHotel(conn, id);
+    await ensureRoomStockRows(conn, id, newRoomTypeIds);
+
+    await conn.commit();
+    res.json({ success: true, message: '更新成功' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
 });
 
-app.delete('/api/hotels/:id', authMiddleware, (req, res) => {
+app.delete('/api/hotels/:id', authMiddleware, async (req, res) => {
   if (req.user.role !== 'merchant') return res.status(403).json({ success: false, message: '仅商户可操作' });
-  const id = req.params.id;
-  
-  // 先查询图片用于删除 OSS
-  db.query('SELECT image_url FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId], (err, rows) => {
-    if (rows && rows.length > 0) {
-      // 简化处理：直接删除数据库记录，OSS 清理逻辑保持 index1.js 的思路但此处简化
-      db.query('DELETE FROM room_types WHERE hotel_id = ?', [id], () => {
-        db.query('DELETE FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId], () => {
-          res.json({ success: true, message: '已删除' });
-        });
-      });
-    } else {
-      res.status(404).json({ success: false, message: '酒店不存在' });
+  const id = Number(req.params.id);
+
+  const conn = await dbPromise.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT id FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId]);
+    if (!rows || rows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Hotel not found' });
     }
-  });
+
+    await conn.query('DELETE FROM room_stock WHERE hotel_id = ?', [id]);
+    await conn.query('DELETE FROM room_types WHERE hotel_id = ?', [id]);
+    await conn.query('DELETE FROM hotels WHERE id = ? AND merchant_id = ?', [id, req.user.userId]);
+
+    await conn.commit();
+    res.json({ success: true, message: 'Deleted' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
 });
 
 app.patch('/api/hotels/:id/status', authMiddleware, (req, res) => {
   if (req.user.role !== 'merchant') return res.status(403).json({ success: false, message: '仅商户可操作' });
   const { status } = req.body;
-  if (status !== 2) return res.status(400).json({ success: false, message: '仅支持退回' });
+  if (status !== 2) return res.status(400).json({ success: false, message: 'Only status=2 is supported' });
   
-  db.query('UPDATE hotels SET status = ?, cancellation = ? WHERE id = ? AND merchant_id = ?', [status, '商家自行退回', req.params.id, req.user.userId], (err, result) => {
+  db.query('UPDATE hotels SET status = ?, cancellation = ? WHERE id = ? AND merchant_id = ?', [status, 'Merchant requested offline', req.params.id, req.user.userId], (err, result) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
-    res.json({ success: true, message: '已退回' });
+    res.json({ success: true, message: 'Offline success' });
   });
 });
 
@@ -1074,7 +1575,7 @@ app.get('/api/admin/hotels/:id', authMiddleware, adminMiddleware, (req, res) => 
   
   db.query(sql, [id], (err, rows) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
-    if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: '酒店不存在' });
+    if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: 'Hotel not found' });
     
     const hotel = rows[0];
     db.query('SELECT * FROM room_types WHERE hotel_id = ?', [id], (errRt, roomRows) => {
@@ -1084,18 +1585,35 @@ app.get('/api/admin/hotels/:id', authMiddleware, adminMiddleware, (req, res) => 
   });
 });
 
-app.post('/api/admin/hotels/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
-  db.query('UPDATE hotels SET status = 1 WHERE id = ?', [req.params.id], (err) => {
-    if (err) return res.status(500).json({ success: false, message: err.message });
+app.post('/api/admin/hotels/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
+  const hotelId = Number(req.params.id);
+  const conn = await dbPromise.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [result] = await conn.query('UPDATE hotels SET status = 1 WHERE id = ?', [hotelId]);
+    if (!result || result.affectedRows === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Hotel not found' });
+    }
+
+    const roomTypeIds = await getRoomTypeIdsByHotel(conn, hotelId);
+    await ensureRoomStockRows(conn, hotelId, roomTypeIds);
+
+    await conn.commit();
     res.json({ success: true, message: '已通过' });
-  });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
 });
 
 app.post('/api/admin/hotels/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
   const { reason } = req.body;
   db.query('UPDATE hotels SET status = 2, cancellation = ? WHERE id = ?', [reason, req.params.id], (err) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
-    res.json({ success: true, message: '已拒绝' });
+    res.json({ success: true, message: 'Rejected' });
   });
 });
 
@@ -1103,26 +1621,44 @@ app.post('/api/admin/hotels/:id/offline', authMiddleware, adminMiddleware, (req,
   const { reason } = req.body;
   db.query('UPDATE hotels SET status = 3, cancellation = ? WHERE id = ?', [reason, req.params.id], (err) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
-    res.json({ success: true, message: '已下线' });
+    res.json({ success: true, message: 'Offline success' });
   });
 });
 
-app.delete('/api/admin/hotels/:id', authMiddleware, adminMiddleware, (req, res) => {
-  const id = req.params.id;
-  db.query('DELETE FROM room_types WHERE hotel_id = ?', [id], () => {
-    db.query('DELETE FROM hotels WHERE id = ?', [id], (err) => {
-      if (err) return res.status(500).json({ success: false, message: err.message });
-      res.json({ success: true, message: '已删除' });
-    });
-  });
+app.delete('/api/admin/hotels/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  const id = Number(req.params.id);
+  const conn = await dbPromise.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM room_stock WHERE hotel_id = ?', [id]);
+    await conn.query('DELETE FROM room_types WHERE hotel_id = ?', [id]);
+    const [result] = await conn.query('DELETE FROM hotels WHERE id = ?', [id]);
+    if (!result || result.affectedRows === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Hotel not found' });
+    }
+    await conn.commit();
+    res.json({ success: true, message: 'Deleted' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    conn.release();
+  }
 });
 
 // 统一错误处理
 app.use((err, req, res, next) => {
   console.error('全局错误:', err);
-  res.status(500).json({ success: false, message: err.message || '服务器错误' });
+  res.status(500).json({ success: false, message: err.message || 'Server error' });
 });
 
 app.listen(port, () => {
   console.log(`🚀 服务端已启动: http://localhost:${port}`);
 });
+
+
+
+
+
+

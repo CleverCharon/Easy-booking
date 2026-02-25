@@ -135,7 +135,11 @@ export default function HotelPublishPage() {
         setCoverPreview(null)
         setPendingRoomFiles({})
         const { code, number } = parsePhone(detail.phone ?? undefined)
-        const tagList = detail.tags ? detail.tags.split(/[\uFF0C,]/).map((s) => s.trim()).filter(Boolean) : []
+        const tagList = Array.isArray(detail.tags)
+          ? detail.tags.map((s) => String(s).trim()).filter(Boolean)
+          : typeof detail.tags === 'string'
+            ? detail.tags.split(/[\uFF0C,]/).map((s) => s.trim()).filter(Boolean)
+            : []
         form.setFieldsValue({
           name: detail.name,
           city: detail.city,
@@ -246,6 +250,7 @@ export default function HotelPublishPage() {
           form={form}
           layout="vertical"
           onFinish={onFinish}
+          autoComplete="off"
           initialValues={{ roomTypes: [defaultRoomType], 
                            phoneCode: '+86', 
                            tagList: [] 
@@ -255,12 +260,17 @@ export default function HotelPublishPage() {
         >
           <Card title="基础信息" className="mb-6 rounded-xl shadow-sm">
             <Form.Item name="name" label="酒店名称" rules={[{ required: true, message: '请输入酒店名称' }]}>
-              <Input placeholder="请输入酒店名称" size="large" className="rounded-lg" />
+              <Input placeholder="请输入酒店名称" size="large" className="rounded-lg" autoComplete="organization" />
             </Form.Item>
-            <Form.Item name="city" label="所在城市" rules={[{ required: true, message: '请选择省/市' }]}>
+            <Form.Item className="mb-6">
+              <div className="mb-1 text-gray-700 font-medium">所在城市</div>
+              <Form.Item name="city" noStyle rules={[{ required: true, message: '请选择省/市' }]}>
+                <Input type="hidden" autoComplete="off" />
+              </Form.Item>
               <Form.Item noStyle shouldUpdate={(prev, curr) => prev.city !== curr.city}>
                 {({ getFieldValue, setFieldValue }) => (
                   <Cascader
+                    id="hotel-city"
                     options={chinaRegions}
                     placeholder="请选择省 / 市"
                     size="large"
@@ -273,9 +283,10 @@ export default function HotelPublishPage() {
               </Form.Item>
             </Form.Item>
             <Form.Item name="address" label="具体地址" rules={[{ required: true, message: '请输入地址' }]}>
-              <Input placeholder="请输入详细地址" size="large" className="rounded-lg" />
+              <Input placeholder="请输入详细地址" size="large" className="rounded-lg" autoComplete="street-address" />
             </Form.Item>
-            <Form.Item label="联系电话">
+            <Form.Item className="mb-6">
+              <div className="mb-1 text-gray-700 font-medium">联系电话</div>
               <Space.Compact className="w-full flex" size="middle">
                 <div className="w-1/3 shrink-0">
                   <Form.Item name="phoneCode" noStyle > {/*noStyle initialValue="+86" 为重复设置*/}
@@ -306,7 +317,7 @@ export default function HotelPublishPage() {
                 </div>
                 <div className="w-2/3 shrink-0">
                   <Form.Item name="phoneNumber" noStyle>
-                    <Input placeholder="选填，输入号码" size="large" className="rounded-lg w-full" />
+                    <Input id="hotel-phone-number" placeholder="选填，输入号码" size="large" className="rounded-lg w-full" autoComplete="tel" />
                   </Form.Item>
                 </div>
               </Space.Compact>
@@ -319,7 +330,8 @@ export default function HotelPublishPage() {
                 <InputNumber placeholder="选填" min={1} max={5} precision={0} size="large" className="rounded-lg w-full" />
               </Form.Item>
             </div>
-            <Form.Item label="标签（可多选）" className="mb-8">
+            <Form.Item className="mb-8">
+              <div className="mb-1 text-gray-700 font-medium">标签（可多选）</div>
               <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
                 <Form.Item name="tagList" noStyle>
                   <Checkbox.Group
@@ -329,7 +341,11 @@ export default function HotelPublishPage() {
                 </Form.Item>
               </div>
             </Form.Item>
-            <Form.Item name="image_url" label="封面图">
+            <Form.Item>
+              <div className="mb-1 text-gray-700 font-medium">封面图</div>
+              <Form.Item name="image_url" noStyle>
+                <Input type="hidden" autoComplete="off" />
+              </Form.Item>
               <Form.Item noStyle shouldUpdate={(prev, curr) => prev.image_url !== curr.image_url}>
                 {({ getFieldValue, setFieldValue }) => {
                   const existingUrl = getFieldValue('image_url')
@@ -378,7 +394,7 @@ export default function HotelPublishPage() {
               </Form.Item>
             </Form.Item>
             <Form.Item name="description" label="酒店介绍">
-              <Input.TextArea placeholder="选填" rows={3} className="rounded-lg" />
+              <Input.TextArea placeholder="选填" rows={3} className="rounded-lg" autoComplete="off" />
             </Form.Item>
           </Card>
 
@@ -402,15 +418,19 @@ export default function HotelPublishPage() {
                     <div key={key} className="flex items-start gap-2 mb-4 p-4 rounded-lg bg-gray-50/80">
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <Form.Item {...rest} name={[name, 'name']} label="房型名称" rules={[{ required: true }]}>
-                          <Input placeholder="如：豪华大床房" size="large" className="rounded-lg" />
+                          <Input placeholder="如：豪华大床房" size="large" className="rounded-lg" autoComplete="off" />
                         </Form.Item>
                         <Form.Item {...rest} name={[name, 'price']} label="价格（元）" rules={[{ required: true }]}>
                           <InputNumber min={0} precision={2} size="large" className="rounded-lg w-full" />
                         </Form.Item>
                         <Form.Item {...rest} name={[name, 'description']} label="描述" className="md:col-span-2">
-                          <Input placeholder="如：30平米/有窗/含早" size="large" className="rounded-lg" />
+                          <Input placeholder="如：30平米/有窗/含早" size="large" className="rounded-lg" autoComplete="off" />
                         </Form.Item>
-                        <Form.Item {...rest} name={[name, 'image_url']} label="房型图（可多张）" className="md:col-span-2">
+                        <Form.Item {...rest} className="md:col-span-2">
+                          <div className="mb-1 text-gray-700 font-medium">房型图（可多张）</div>
+                          <Form.Item {...rest} name={[name, 'image_url']} noStyle>
+                            <Input type="hidden" autoComplete="off" />
+                          </Form.Item>
                           <Form.Item noStyle shouldUpdate>
                             {({ getFieldValue, setFieldValue }) => {
                               const value = getFieldValue(['roomTypes', name, 'image_url']) as string | undefined

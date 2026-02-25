@@ -1,92 +1,192 @@
-import { useState, useEffect } from 'react';
-import Taro, { useRouter } from '@tarojs/taro';
-import { View, Text, Image } from '@tarojs/components';
-import { Button, Calendar, Rate, Tag } from '@nutui/nutui-react-taro';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Pagination, Navigation } from 'swiper/modules';
-import {
-  HeartOutlined,
-  HeartFilled,
-  ShareAltOutlined,
-  StarFilled,
-  EnvironmentOutlined,
-  UserOutlined,
-  CheckCircleFilled,
-  ArrowLeftOutlined,
-  CarOutlined,
-  BellOutlined,
-  CoffeeOutlined
-} from '@ant-design/icons';
-import { useUserStore } from '../../store/user';
-import { post, get } from '../../utils/request';
-import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/navigation';
+import { useEffect, useMemo, useState } from 'react'
+import Taro, { usePullDownRefresh, useRouter } from '@tarojs/taro'
+import { View, Text, Image, ScrollView } from '@tarojs/components'
+import { Button, Calendar, Swiper, SwiperItem } from '@nutui/nutui-react-taro'
+import { ArrowLeft, Heart, HeartFill, StarFill, Location } from '@nutui/icons-react-taro'
+import dayjs from 'dayjs'
+import { useUserStore } from '../../store/user'
+import { useSearchStore } from '../../store/search'
+import { get, post } from '../../utils/request'
+import './index.scss'
 
-/**
- * 酒店详情页组件
- * 展示酒店详细信息、图片轮播、房型列表及预订入口。
- */
-const App: React.FC = () => {
-  const router = useRouter();
-  const { id } = router.params;
-  const { userInfo } = useUserStore();
-  const [hotel, setHotel] = useState<any>(null);
-  
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [checkInDate, setCheckInDate] = useState('10月25日');
-  const [checkOutDate, setCheckOutDate] = useState('10月26日');
-  const [nights, setNights] = useState(1);
-  const [guests] = useState(2);
-  const [rooms] = useState(1);
+interface RoomPlan {
+  id: number
+  name: string
+  price: number
+  remain_count: number
+  sold_out: boolean
+}
+
+interface RoomType {
+  id: number
+  name: string
+  description?: string
+  image_url?: string
+  remain_count: number
+  sold_out: boolean
+  plans: RoomPlan[]
+}
+
+interface HotelDetail {
+  id: number
+  name: string
+  address?: string
+  city?: string
+  star_level?: number
+  score?: number
+  tags?: string[]
+  image_url?: string
+  main_image?: string
+  images?: string[]
+  rooms?: RoomType[]
+}
+
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80'
+
+const toYmd = (v: any, fallback: string): string => {
+  const d = dayjs(v)
+  if (!d.isValid()) return fallback
+  return d.format('YYYY-MM-DD')
+}
+
+const toCalendarDate = (value: any): string => {
+  if (Array.isArray(value) && value[3]) return String(value[3])
+  return String(value || '')
+}
+
+const normalizeTags = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.map((x) => String(x).trim()).filter(Boolean)
+  if (typeof value === 'string') return value.split(',').map((x) => x.trim()).filter(Boolean)
+  return []
+}
+
+const DetailPage = () => {
+  const router = useRouter()
+  const id = String(router.params.id || '')
+  const initialCheckIn = toYmd(router.params.checkIn, dayjs().format('YYYY-MM-DD'))
+  const initialCheckOut = toYmd(router.params.checkOut, dayjs().add(1, 'day').format('YYYY-MM-DD'))
+
+  const { userInfo } = useUserStore()
+  const { setDates } = useSearchStore()
+
+  const [hotel, setHotel] = useState<HotelDetail | null>(null)
+  const [isScrolled, setIsScrolled] = useState(false)
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [selectedRoom, setSelectedRoom] = useState<number | null>(null)
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [checkInDate, setCheckInDate] = useState(initialCheckIn)
+  const [checkOutDate, setCheckOutDate] = useState(initialCheckOut)
+  const [guests] = useState(2)
+  const [rooms] = useState(1)
+
+  const roomList = useMemo(() => (Array.isArray(hotel?.rooms) ? hotel!.rooms! : []), [hotel])
+
+  const nights = useMemo(() => {
+    const diff = dayjs(checkOutDate).diff(dayjs(checkInDate), 'day')
+    return diff > 0 ? diff : 1
+  }, [checkInDate, checkOutDate])
+
+  const selectedRoomInfo = useMemo(
+    () => roomList.find((r) => Number(r.id) === Number(selectedRoom)) || roomList[0],
+    [roomList, selectedRoom]
+  )
+
+  const selectedPrice = Number(selectedRoomInfo?.plans?.[0]?.price || 0)
+
+  const fetchFavoriteState = async () => {
+    if (!userInfo?.id || !id) return
+    try {
+      const favRes = await get(`/favorites/list?user_id=${userInfo.id}`)
+      const favored = (Array.isArray(favRes) ? favRes : []).some((item: any) => String(item.id) === id)
+      setIsFavorite(favored)
+    } catch (error) {
+      console.error('fetchFavoriteState error:', error)
+    }
+  }
+
+  const fetchDetail = async () => {
+    if (!id) return
+    setLoading(true)
+    try {
+      const res = await get(
+        `/hotels/${id}?check_in_date=${encodeURIComponent(checkInDate)}&check_out_date=${encodeURIComponent(checkOutDate)}`
+      )
+      const detail: HotelDetail = {
+        ...res,
+        tags: normalizeTags(res?.tags),
+        rooms: Array.isArray(res?.rooms) ? res.rooms : [],
+      }
+      setHotel(detail)
+      if (userInfo?.id) {
+        await post('/history/add', { user_id: userInfo.id, hotel_id: id }).catch(() => undefined)
+      }
+    } catch (error) {
+      console.error(error)
+      Taro.showToast({ title: '\u52a0\u8f7d\u9152\u5e97\u8be6\u60c5\u5931\u8d25', icon: 'none' })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchDetail = async () => {
-       if(!id) return;
-       try {
-         const res = await get(`/hotels/${id}`);
-         setHotel(res);
-         
-         // 如果用户已登录，记录浏览历史
-         if (userInfo?.id) {
-            await post('/history/add', { user_id: userInfo.id, hotel_id: id });
-            
-            // 检查收藏状态
-            const favRes = await get(`/favorites/list?user_id=${userInfo.id}`);
-            // 判断当前酒店是否在用户收藏列表中
-            const isFav = favRes.some((h: any) => String(h.id) === String(id));
-            setIsFavorite(isFav);
-         }
-       } catch(e) {
-         console.error(e);
-         Taro.showToast({ title: '获取详情失败', icon: 'none' });
-       }
-    }
-    fetchDetail();
-  }, [id, userInfo]);
+    fetchDetail()
+  }, [id, checkInDate, checkOutDate])
 
-  /**
-   * 切换当前酒店的收藏状态
-   */
+  useEffect(() => {
+    fetchFavoriteState()
+  }, [id, userInfo?.id])
+
+  usePullDownRefresh(() => {
+    setHotel(null)
+    setSelectedRoom(null)
+    Promise.all([fetchDetail(), fetchFavoriteState()]).finally(() => {
+      Taro.stopPullDownRefresh()
+    })
+  })
+
+  useEffect(() => {
+    if (roomList.length === 0) {
+      setSelectedRoom(null)
+      return
+    }
+    const current = roomList.find((room) => Number(room.id) === Number(selectedRoom))
+    if (current && !current.sold_out) return
+    const firstAvailable = roomList.find((room) => !room.sold_out)
+    setSelectedRoom(firstAvailable ? firstAvailable.id : roomList[0].id)
+  }, [roomList, selectedRoom])
+
+  const hotelImages = useMemo(() => {
+    const fromServer = Array.isArray(hotel?.images) ? hotel!.images! : []
+    if (fromServer.length > 0) return fromServer
+    return [hotel?.main_image || hotel?.image_url || DEFAULT_IMAGE]
+  }, [hotel])
+
+  const navigateLoginWithToast = (title: string) => {
+    Taro.showToast({ title, icon: 'none' })
+    setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 350)
+  }
+
   const toggleFavorite = async () => {
     if (!userInfo?.id) {
-      Taro.showToast({ title: '请先登录', icon: 'none' });
-      setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 1000);
-      return;
+      navigateLoginWithToast('请先登录后再收藏')
+      return
     }
-
     try {
       if (isFavorite) {
         await post('/favorites/remove', { user_id: userInfo.id, hotel_id: id });
         setIsFavorite(false);
         Taro.showToast({ title: '已取消收藏', icon: 'none' });
+        await post('/favorites/remove', { user_id: userInfo.id, hotel_id: id })
+        setIsFavorite(false)
+        Taro.showToast({ title: '\u5df2\u53d6\u6d88\u6536\u85cf', icon: 'none' })
       } else {
         await post('/favorites/add', { user_id: userInfo.id, hotel_id: id });
         setIsFavorite(true);
         Taro.showToast({ title: '收藏成功', icon: 'success' });
+        await post('/favorites/add', { user_id: userInfo.id, hotel_id: id })
+        setIsFavorite(true)
+        Taro.showToast({ title: '\u6536\u85cf\u6210\u529f', icon: 'success' })
       }
     } catch (e) {
       console.error('Favorite operation failed:', e);
@@ -139,297 +239,231 @@ const App: React.FC = () => {
     }
     setShowCalendar(false);
   };
+    } catch (error) {
+      console.error(error)
+      Taro.showToast({ title: '\u64cd\u4f5c\u5931\u8d25', icon: 'none' })
+    }
+  }
+
+  const handleDateConfirm = (param: any) => {
+    if (Array.isArray(param) && param.length >= 2) {
+      const inDate = toCalendarDate(param[0])
+      const outDate = toCalendarDate(param[1])
+      const nextIn = toYmd(inDate, checkInDate)
+      const nextOut = toYmd(outDate, checkOutDate)
+      if (dayjs(nextOut).isAfter(dayjs(nextIn), 'day')) {
+        setCheckInDate(nextIn)
+        setCheckOutDate(nextOut)
+        setDates(nextIn, nextOut)
+      }
+    }
+    setShowCalendar(false)
+  }
+
+  const handleBook = () => {
+    if (!userInfo?.id) {
+      navigateLoginWithToast('请先登录后再预订')
+      return
+    }
+    if (!selectedRoomInfo) {
+      Taro.showToast({ title: '\u6682\u65e0\u53ef\u9884\u8ba2\u623f\u578b', icon: 'none' })
+      return
+    }
+    if (selectedRoomInfo.sold_out || Number(selectedRoomInfo.remain_count || 0) <= 0) {
+      Taro.showToast({ title: '\u8be5\u623f\u578b\u5df2\u552e\u7f44', icon: 'none' })
+      return
+    }
+
+    Taro.navigateTo({
+      url:
+        `/pages/order/create/index?hotelId=${id}` +
+        `&roomId=${selectedRoomInfo.id}` +
+        `&checkIn=${encodeURIComponent(checkInDate)}` +
+        `&checkOut=${encodeURIComponent(checkOutDate)}`,
+    })
+  }
 
   return (
-    <View className="relative w-full min-h-screen bg-white">
-      {/* Top Navigation Bar */}
-      <View 
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 transition-all duration-300 ${
-          isScrolled 
-            ? 'bg-[#2C439B]/95 backdrop-blur-md shadow-md text-white' 
-            : 'bg-transparent text-white'
-        }`}
-        style={{ pointerEvents: 'none' }} // 让导航栏背景不拦截点击，但允许子元素点击
-      >
-        <View 
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm active:scale-95 transition-transform" 
-          onClick={() => Taro.navigateBack()}
-          style={{ pointerEvents: 'auto' }}
-        >
-          <ArrowLeftOutlined className="text-white" />
-        </View>
-        
-        <View className={`text-lg font-bold transition-opacity duration-300 ${isScrolled ? 'opacity-100' : 'opacity-0'}`}>
-          {hotel?.name}
-        </View>
-        
-        <View className="flex space-x-3" style={{ pointerEvents: 'auto' }}>
-          <View className="flex items-center justify-center w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm active:scale-95 transition-transform">
-            <ShareAltOutlined className="text-white" />
+    <View className="detail-page-v4">
+        <View className={`nav-bar ${isScrolled ? 'scrolled' : ''}`}>
+          <View className="left-btn" onClick={() => Taro.navigateBack()}>
+            <ArrowLeft color="#fff" />
           </View>
-          <View 
-            className="flex items-center justify-center w-8 h-8 rounded-full bg-black/20 backdrop-blur-sm active:scale-95 transition-transform"
-            onClick={toggleFavorite}
-            style={{ cursor: 'pointer' }}
-          >
-            {isFavorite ? (
-              <HeartFilled className="text-[#DFA0C8]" />
-            ) : (
-              <HeartOutlined className="text-white" />
-            )}
-          </View>
+          <Text className="nav-title">{hotel?.name || '\u9152\u5e97\u8be6\u60c5'}</Text>
+          <View className="right-btns">
+            <View className="btn share-btn">
+              <Text className="share-text">{'\u5206\u4eab'}</Text>
+            </View>
+            <View className="btn" onClick={toggleFavorite}>
+              {isFavorite ? <HeartFill color="#DFA0C8" /> : <Heart color="#fff" />}
+            </View>
         </View>
       </View>
 
-      {/* Image Banner Carousel */}
-      <View className="relative h-72 md:h-80">
-        <Swiper
-          modules={[Pagination, Navigation]}
-          spaceBetween={0}
-          slidesPerView={1}
-          pagination={{ clickable: true }}
-          className="h-full group"
-        >
-          {hotelImages.map((img, index) => (
-            <SwiperSlide key={index}>
-              <View className="relative h-full">
-                <Image 
-                  src={img} 
-                  mode="aspectFill"
-                  className="w-full h-full object-cover"
-                />
-                
-                {/* Gradient overlay */}
-                <View className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30"></View>
-                
-                {/* Rating badge */}
-                <View className="absolute top-24 left-4 bg-white/90 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center space-x-1 shadow-lg transform transition-transform hover:scale-105">
-                  <StarFilled className="text-[#33C7F7] text-xs" />
-                  <Text className="text-[#25255F] text-xs font-bold">{hotel?.score}分 · {hotel?.review_count}条</Text>
-                </View>
-                
-                {/* Official photo badge */}
-                <View className="absolute bottom-6 left-4 bg-black/40 backdrop-blur-md rounded-full px-3 py-1 border border-white/20">
-                  <Text className="text-white text-xs">官方图片</Text>
-                </View>
+      <ScrollView scrollY className="content-scroll" onScroll={(e: any) => setIsScrolled(Number(e.detail.scrollTop || 0) > 80)}>
+        <View className="banner-wrap">
+          <Swiper className="custom-swiper" autoPlay indicator>
+            {hotelImages.map((img) => (
+              <SwiperItem key={img}>
+                <Image src={img || DEFAULT_IMAGE} mode="aspectFill" className="banner-img" />
+              </SwiperItem>
+            ))}
+          </Swiper>
+          <View className="gradient-overlay" />
+          <View className="rating-badge">
+            <StarFill size={12} color="#33C7F7" />
+            <Text className="txt">{`${Number(hotel?.score || 0).toFixed(1)}\u5206`}</Text>
+          </View>
+          <View className="official-badge">
+            <Text className="txt">{'\u5b98\u65b9\u56fe\u7247'}</Text>
+          </View>
+        </View>
+
+        <View className="info-card">
+          <View className="header">
+            <Text className="name">{hotel?.name || '\u9152\u5e97\u8be6\u60c5'}</Text>
+            <View className="tags">
+              {(hotel?.tags || []).slice(0, 2).map((tag, idx) => (
+                <Text key={`${tag}-${idx}`} className={`tag ${idx === 0 ? 'blue' : 'pink'}`}>
+                  {tag}
+                </Text>
+              ))}
+            </View>
+          </View>
+
+          <View className="star-row">
+            <StarFill size={12} color="#33C7F7" />
+            <Text className="level">{`${Number(hotel?.star_level || 0)}\u661f\u9152\u5e97`}</Text>
+          </View>
+
+          <View className="address-row">
+            <Location size={12} color="#33C7F7" />
+            <Text className="addr-txt">{hotel?.address || `${hotel?.city || ''}`}</Text>
+            <View className="map-btn">{'\u5730\u56fe'}</View>
+          </View>
+
+          <View className="services-row">
+            {(hotel?.tags || []).slice(0, 3).map((tag) => (
+              <View className="svc" key={tag}>
+                <Text className="svc-icon">-</Text>
+                <Text>{tag}</Text>
               </View>
-            </SwiperSlide>
-          ))}
-        </Swiper>
-      </View>
+            ))}
+          </View>
+        </View>
 
-      {/* Basic Info Card */}
-      <View className="relative -mt-6 rounded-t-3xl bg-white px-5 pt-6 pb-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-10">
-        <View className="mb-4">
-          <View className="flex items-start justify-between mb-2">
-            <Text className="text-2xl font-bold text-[#25255F] leading-tight flex-1 mr-2">{hotel?.name}</Text>
-            <View className="flex flex-col items-end space-y-1">
-               <View 
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   toggleFavorite();
-                 }} 
-                 className={`px-3 py-1 rounded-full text-xs font-bold mb-1 flex items-center ${isFavorite ? 'bg-pink-100 text-pink-500' : 'bg-gray-100 text-gray-500'}`}
-               >
-                 {isFavorite ? <HeartFilled className="mr-1" /> : <HeartOutlined className="mr-1" />}
-                 {isFavorite ? '已收藏' : '收藏'}
-               </View>
-               <Text className="bg-[#33C7F7]/10 text-[#2C439B] text-[10px] px-2 py-0.5 rounded-full font-medium">{hotel?.brand}</Text>
+        <View className="date-card" onClick={() => setShowCalendar(true)}>
+          <View className="date-sec">
+            <View className="col">
+              <Text className="label">{'\u5165\u4f4f'}</Text>
+              <Text className="val">{dayjs(checkInDate).format('MM-DD')}</Text>
+            </View>
+            <View className="col">
+              <Text className="val blue">{`\u5171${nights}\u665a`}</Text>
+              <Text className="info">{`${guests}\u4eba - ${rooms}\u95f4`}</Text>
+            </View>
+            <View className="col">
+              <Text className="label">{'\u79bb\u5e97'}</Text>
+              <Text className="val">{dayjs(checkOutDate).format('MM-DD')}</Text>
             </View>
           </View>
-          
-          <View className="flex items-center mb-3">
-            <View className="flex mr-2">
-              <Rate readOnly value={hotel?.score || 5} />
-            </View>
-            <Text className="text-xs text-[#2C439B] font-medium bg-[#2C439B]/5 px-2 py-0.5 rounded">{hotel?.star_level}星级酒店</Text>
-          </View>
-          
-          <View className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-            <View className="flex items-center text-sm text-[#25255F] flex-1 mr-4">
-              <View className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm mr-2 flex-shrink-0">
-                <EnvironmentOutlined className="text-[#33C7F7]" />
+          <Text className="edit-btn">{'\u4fee\u6539'}</Text>
+        </View>
+
+        <View className="room-list">
+          {loading ? (
+            <View className="room-card">
+              <View className="card-content">
+                <Text>{'\u623f\u578b\u52a0\u8f7d\u4e2d...'}</Text>
               </View>
-              <Text className="truncate font-medium text-gray-700">{hotel?.address}</Text>
             </View>
-            <View className="flex-shrink-0 text-[#33C7F7] bg-white px-3 py-1.5 rounded-full text-xs font-bold shadow-sm active:scale-95 transition-transform">
-              地图
+          ) : roomList.length === 0 ? (
+            <View className="room-card">
+              <View className="card-content">
+                <Text>{'\u6682\u65e0\u623f\u578b\u6570\u636e'}</Text>
+              </View>
             </View>
-          </View>
-        </View>
-        
-        <View className="flex justify-around py-2 border-t border-gray-100">
-          <View className="flex flex-col items-center text-[#25255F]/80">
-            <CarOutlined className="text-[#33C7F7] text-lg mb-1" />
-            <Text className="text-xs">免费停车</Text>
-          </View>
-          <View className="flex flex-col items-center text-[#25255F]/80">
-            <BellOutlined className="text-[#33C7F7] text-lg mb-1" />
-            <Text className="text-xs">自助入住</Text>
-          </View>
-          <View className="flex flex-col items-center text-[#25255F]/80">
-            <CoffeeOutlined className="text-[#33C7F7] text-lg mb-1" />
-            <Text className="text-xs">含早餐</Text>
-          </View>
-        </View>
-      </View>
+          ) : (
+            roomList.map((room) => {
+              const active = Number(selectedRoom) === Number(room.id)
+              const price = Number(room.plans?.[0]?.price || 0)
+              const featureList = String(room.description || '')
+                .split(/[\uFF0C,]/)
+                .map((x) => x.trim())
+                .filter(Boolean)
+                .slice(0, 4)
+              return (
+                <View key={room.id} className={`room-card ${active ? 'selected' : ''}`}>
+                  <View className="card-content">
+                    <View className="head-row">
+                      <Text className="r-name">{room.name}</Text>
+                      <View className="r-tags">
+                        <Text className="r-tag blue">{`\u5269${Math.max(0, Number(room.remain_count || 0))}\u95f4`}</Text>
+                        {room.sold_out ? (
+                          <Text className="r-tag pink">{'\u5df2\u552e\u7f44'}</Text>
+                        ) : (
+                          <Text className="r-tag pink">{'\u53ef\u9884\u8ba2'}</Text>
+                        )}
+                      </View>
+                    </View>
 
-      {/* Calendar and Guests Card */}
-      <View className="mx-4 mt-2 p-4 bg-gradient-to-r from-blue-50 to-white rounded-xl shadow-sm border border-blue-100">
-        <View className="flex items-center justify-between">
-          <View className="flex items-center flex-1">
-            <View className="text-center mr-6">
-              <View className="text-[#33C7F7] text-xs font-medium mb-1">入住</View>
-              <Text className="text-[#25255F] font-bold text-lg leading-none">{checkInDate}</Text>
-            </View>
-            <View className="flex-1 flex flex-col items-center">
-               <Text className="text-[#25255F]/50 text-xs bg-white px-2 py-0.5 rounded-full border border-gray-100 mb-1">{nights}晚</Text>
-               <View className="w-full h-[1px] bg-gray-200 relative">
-                 <View className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-1 bg-gray-300 rounded-full"></View>
-               </View>
-            </View>
-            <View className="text-center ml-6">
-              <View className="text-[#2C439B] text-xs font-medium mb-1">离店</View>
-              <Text className="text-[#25255F] font-bold text-lg leading-none">{checkOutDate}</Text>
-            </View>
-          </View>
-          <View 
-            className="ml-6 text-[#2C439B] text-sm font-bold flex items-center"
-            onClick={() => setShowCalendar(true)}
-          >
-            修改 <Text className="ml-1">›</Text>
-          </View>
-        </View>
-        <View className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between text-sm">
-           <View className="flex items-center text-[#25255F] font-medium">
-             <UserOutlined className="mr-2 text-[#33C7F7]" />
-             <Text>{guests}人 · {rooms}间</Text>
-           </View>
-           <Text className="text-[#25255F]/40 text-xs">标准入住人数</Text>
-        </View>
-      </View>
+                    <View className="features">
+                      {(featureList.length > 0 ? featureList : ['\u53ef\u4f4f2\u4eba', '\u72ec\u7acb\u536b\u6d74']).map((feature) => (
+                        <View className="feat-item" key={feature}>
+                          <Text>{`- ${feature}`}</Text>
+                        </View>
+                      ))}
+                    </View>
 
-      {/* Room Types List */}
-      <View className="px-4 mt-6 space-y-4 pb-28">
-        <Text className="text-lg font-bold text-[#25255F] mb-3 px-1">选择房型</Text>
-        {roomTypes.map((room) => (
-          <View 
-            key={room.id} 
-            className={`bg-white rounded-2xl shadow-[0_2px_15px_rgba(0,0,0,0.03)] overflow-hidden transition-all duration-300 border ${
-              selectedRoom === room.id ? 'border-[#33C7F7] shadow-blue-100' : 'border-transparent'
-            }`}
-          >
-            <View className="p-4">
-              <View className="flex justify-between items-start mb-3">
-                <View>
-                   <Text className="text-[#25255F] font-bold text-lg mb-1">{room.name}</Text>
-                   <View className="flex flex-wrap gap-2">
-                    {room.tags.map((tag, idx) => (
-                      <Tag 
-                        key={idx} 
-                        color={tag.includes('会员') || tag.includes('特价') ? '#DFA0C8' : '#33C7F7'}
-                        background={tag.includes('会员') || tag.includes('特价') ? 'rgba(223, 160, 200, 0.1)' : 'rgba(51, 199, 247, 0.1)'}
-                        style={{ color: tag.includes('会员') || tag.includes('特价') ? '#DFA0C8' : '#2C439B' }}
-                        round
+                    <View className="price-row">
+                      <View className="left">
+                        <Text className="curr">{`\u00a5${price}`}</Text>
+                        <Text className="old">{`\u00a5${Math.max(price + 80, price)}`}</Text>
+                        <Text className="disc">{'\u4f18\u60e0\u4ef7'}</Text>
+                      </View>
+                      <View
+                        className={`book-btn ${active ? 'selected' : ''}`}
+                        onClick={() => {
+                          if (!room.sold_out) setSelectedRoom(room.id)
+                        }}
                       >
-                        {tag}
-                      </Tag>
-                    ))}
-                   </View>
-                </View>
-              </View>
-              
-              <View className="flex flex-wrap gap-y-2 gap-x-4 mb-4 text-xs text-[#25255F]/70 bg-gray-50 p-3 rounded-lg">
-                {room.features.map((feature, idx) => (
-                  <View key={idx} className="flex items-center">
-                    <CheckCircleFilled className="text-[#33C7F7] mr-1.5 text-xs" />
-                    <Text>{feature}</Text>
+                        {room.sold_out ? '\u5df2\u552e\u7f44' : active ? '\u5df2\u9009\u62e9' : '\u9009\u62e9'}
+                      </View>
+                    </View>
                   </View>
-                ))}
-              </View>
-              
-              <View className="flex justify-between items-end">
-                <View className="flex items-baseline">
-                  <Text className="text-[#2C439B] text-2xl font-bold font-sans">¥{room.price}</Text>
-                  {room.originalPrice && (
-                    <Text className="ml-2 text-gray-400 line-through text-xs">
-                      ¥{room.originalPrice}
-                    </Text>
-                  )}
-                  <Text className="ml-2 bg-gradient-to-r from-[#DFA0C8] to-pink-400 text-white text-[10px] px-2 py-0.5 rounded-tl-lg rounded-br-lg transform -translate-y-1">
-                    {room.discount}
-                  </Text>
                 </View>
-                
-                <Button 
-                  className="!h-9 !rounded-full !px-5 !text-sm !font-bold !border-0"
-                  style={{
-                    background: selectedRoom === room.id ? '#2C439B' : 'linear-gradient(to right, #2C439B, #33C7F7)',
-                    color: 'white',
-                    boxShadow: '0 4px 6px -1px rgba(44, 67, 155, 0.2)'
-                  }}
-                  onClick={() => setSelectedRoom(room.id)}
-                >
-                  {selectedRoom === room.id ? '已选' : '预订'}
-                </Button>
-              </View>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      {/* Bottom Action Bar */}
-      <View className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-40">
-        <View className="flex items-center justify-between max-w-2xl mx-auto">
-          <View>
-            <Text className="text-xs text-[#25255F]/60 mb-1">
-              {checkInDate} - {checkOutDate} · {nights}晚
-            </Text>
-            <View className="flex items-baseline">
-              <Text className="text-xs text-[#2C439B] font-bold mr-0.5">¥</Text>
-              <Text className="text-[#2C439B] text-2xl font-bold font-sans">{selectedRoom ? roomTypes.find(r => r.id === selectedRoom)?.price : roomTypes[0]?.price || 0}</Text>
-              <Text className="text-xs text-[#25255F]/60 ml-1">起/晚</Text>
-            </View>
-          </View>
-          <Button 
-            className="!h-12 !rounded-full !px-8 !text-base !font-bold !border-0"
-            style={{
-              background: 'linear-gradient(to right, #2C439B, #33C7F7)',
-              color: 'white',
-              boxShadow: '0 4px 10px rgba(44, 67, 155, 0.2)'
-            }}
-            onClick={() => {
-              if (!userInfo) {
-                Taro.showToast({ title: '请先登录', icon: 'none' });
-                setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 500);
-                return;
-              }
-              if (selectedRoom === null) {
-                Taro.showToast({ title: '请选择房型', icon: 'none' });
-                // Note: Scroll behavior might differ in Taro environments
-              } else {
-                 Taro.navigateTo({
-                    url: `/pages/order/create/index?hotelId=1&roomId=${selectedRoom}`
-                 })
-              }
-            }}
-          >
-            立即预订
-          </Button>
+              )
+            })
+          )}
         </View>
+
+      </ScrollView>
+
+      <View className="bottom-bar">
+        <View className="info">
+          <Text className="desc">
+            {`${dayjs(checkInDate).format('MM-DD')} - ${dayjs(checkOutDate).format('MM-DD')} - \u5171${nights}\u665a`}
+          </Text>
+          <View className="price-box">
+            <Text className="val">{`\u00a5${selectedPrice || 0}`}</Text>
+            <Text className="unit">{'\u8d77/\u665a'}</Text>
+          </View>
+        </View>
+        <Button className="main-btn" onClick={handleBook}>
+          {'\u7acb\u5373\u9884\u8ba2'}
+        </Button>
       </View>
 
-      {/* Calendar Modal */}
       <Calendar
         visible={showCalendar}
         type="range"
-        startDate="2024-01-01"
-        endDate="2025-12-31"
+        defaultValue={[checkInDate, checkOutDate]}
+        startDate={dayjs().format('YYYY-MM-DD')}
         onClose={() => setShowCalendar(false)}
-        onConfirm={handleDateChange}
+        onConfirm={handleDateConfirm}
       />
     </View>
-  );
-};
+  )
+}
 
-export default App;
+export default DetailPage

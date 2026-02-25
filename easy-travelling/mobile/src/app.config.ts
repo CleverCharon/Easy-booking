@@ -8,15 +8,15 @@ export default defineAppConfig({
     'pages/order/create/index',
     'pages/order/list/index',
     'pages/login/index',
-    'pages/login/setup/index'
+    'pages/login/setup/index',
   ],
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: '#fff',
-    navigationBarTitleText: '易宿',
-    navigationBarTextStyle: 'black'
+    navigationBarTitleText: '\u6613\u5bbf',
+    navigationBarTextStyle: 'black',
   },
-  animation: false, // Disable default page transition animation to avoid conflicts
+  animation: false,
   tabBar: {
     color: '#666',
     selectedColor: '#fa2c19',
@@ -25,28 +25,28 @@ export default defineAppConfig({
     list: [
       {
         pagePath: 'pages/home/index',
-        text: '首页',
-        iconPath: '/assets/images/tabbar/tab-home.png',
-        selectedIconPath: '/assets/images/tabbar/home-active.png'
+        text: '\u9996\u9875',
+        iconPath: 'assets/images/tabbar/tab-home.png',
+        selectedIconPath: 'assets/images/tabbar/home-active.png',
       },
       {
         pagePath: 'pages/list/index',
-        text: '搜索',
-        iconPath: '/assets/images/tabbar/tab-search.png',
-        selectedIconPath: '/assets/images/tabbar/tab-search.png'
+        text: '\u641c\u7d22',
+        iconPath: 'assets/images/tabbar/tab-search.png',
+        selectedIconPath: 'assets/images/tabbar/tab-search.png',
       },
       {
         pagePath: 'pages/favorite/index',
-        text: '收藏',
-        iconPath: '/assets/images/tabbar/tab-data.png',
-        selectedIconPath: '/assets/images/tabbar/tab-data.png'
+        text: '\u6536\u85cf',
+        iconPath: 'assets/images/tabbar/tab-data.png',
+        selectedIconPath: 'assets/images/tabbar/tab-data.png',
       },
       {
         pagePath: 'pages/my/index',
-        text: '我的',
-        iconPath: '/assets/images/tabbar/tab-profile.png',
-        selectedIconPath: '/assets/images/tabbar/tab-profile.png'
-      }
-    ]
-  }
+        text: '\u6211\u7684',
+        iconPath: 'assets/images/tabbar/tab-profile.png',
+        selectedIconPath: 'assets/images/tabbar/tab-profile.png',
+      },
+    ],
+  },
 })

@@ -1,119 +1,211 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { View, Text, Image, ScrollView, Input } from '@tarojs/components'
-import Taro from '@tarojs/taro'
+import Taro, { usePullDownRefresh } from '@tarojs/taro'
+import dayjs from 'dayjs'
 import { Search, Heart, HeartFill, StarFill, Location, Close } from '@nutui/icons-react-taro'
-import { Button, Skeleton, Popup } from '@nutui/nutui-react-taro'
+import { Button, Popup } from '@nutui/nutui-react-taro'
 import { useSearchStore } from '../../store/search'
 import { useFavoriteStore, Hotel } from '../../store/favorite'
 import { useUserStore } from '../../store/user'
 import { get, post } from '../../utils/request'
 import './index.scss'
 
+interface HotelCard extends Hotel {
+  city?: string
+  availableStock?: number
+}
+
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80'
+
+const normalizeTags = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.map((x) => String(x).trim()).filter(Boolean)
+  if (typeof value === 'string') return value.split(',').map((x) => x.trim()).filter(Boolean)
+  return []
+}
+
+const parseStarOption = (option: string): number | null => {
+  if (option.includes('2')) return 2
+  if (option.includes('3')) return 3
+  if (option.includes('4')) return 4
+  if (option.includes('5')) return 5
+  return null
+}
+
 const ListPage = () => {
-  const { 
-    city, startDate, endDate, keyword, setKeyword,
-    minPrice, maxPrice, starLevels, setPriceRange, setStarLevels
+  const {
+    city,
+    startDate,
+    endDate,
+    keyword,
+    setKeyword,
+    minPrice,
+    maxPrice,
+    starLevels,
+    setPriceRange,
+    setStarLevels,
   } = useSearchStore()
   const { isFavorite, addFavorite, removeFavorite, setFavorites } = useFavoriteStore()
   const { userInfo } = useUserStore()
-  const [list, setList] = useState<Hotel[]>([])
-  const [filteredList, setFilteredList] = useState<Hotel[]>([])
-  const [loading, setLoading] = useState(true)
+
+  const [list, setList] = useState<HotelCard[]>([])
+  const [loading, setLoading] = useState(false)
   const [showFilter, setShowFilter] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
+  const [localMinPrice, setLocalMinPrice] = useState(minPrice)
+  const [localMaxPrice, setLocalMaxPrice] = useState(maxPrice)
+  const [localStars, setLocalStars] = useState<string[]>(starLevels)
 
-  // Local filter state for popup
-  const [localMinPrice, setLocalMinPrice] = useState(0)
-  const [localMaxPrice, setLocalMaxPrice] = useState(10000)
-  const [localStars, setLocalStars] = useState<string[]>([])
+  const nights = useMemo(() => {
+    const diff = dayjs(endDate).diff(dayjs(startDate), 'day')
+    return diff > 0 ? diff : 1
+  }, [endDate, startDate])
 
-  // Fetch Data
-  useEffect(() => {
-    const fetchHotels = async () => {
-      setLoading(true)
-      try {
-        const res = await get(`/hotels?city_name=${city}`)
-        
-        const hotelList = res.map((h: any) => ({
-          id: String(h.id),
-          name: h.name,
-          image: h.main_image || 'https://via.placeholder.com/300',
-          score: Number(h.score),
-          price: Number(h.min_price),
-          tags: h.tags || [],
-          location: h.address || '距离市中心',
-          star: Number(h.star_level) || 3
-        }))
-        setList(hotelList)
+  const fetchHotels = async () => {
+    setLoading(true)
+    try {
+      const qs = [
+        city ? `city_name=${encodeURIComponent(city)}` : '',
+        keyword.trim() ? `keyword=${encodeURIComponent(keyword.trim())}` : '',
+        startDate ? `check_in_date=${encodeURIComponent(startDate)}` : '',
+        endDate ? `check_out_date=${encodeURIComponent(endDate)}` : '',
+      ]
+        .filter(Boolean)
+        .join('&')
 
-        // Sync favorites if logged in
-        if (userInfo?.id) {
-          try {
-            const favRes = await get(`/favorites/list?user_id=${userInfo.id}`)
-            if (Array.isArray(favRes)) {
-              const favHotels = favRes.map((h: any) => ({
-                id: String(h.id),
-                name: h.name,
-                image: h.image_url || 'https://via.placeholder.com/300',
-                score: Number(h.score),
-                price: Number(h.price),
-                tags: h.tags ? (Array.isArray(h.tags) ? h.tags : h.tags.split(',')) : [],
-                location: h.address,
-                star: Number(h.star_level)
-              }))
-              setFavorites(favHotels)
-            }
-          } catch (err) {
-            console.error('Fetch favorites failed', err)
-          }
+      const res = await get(`/hotels${qs ? `?${qs}` : ''}`)
+      const hotelList: HotelCard[] = (Array.isArray(res) ? res : []).map((item: any) => {
+        const tags = normalizeTags(item.tags)
+        return {
+          id: String(item.id),
+          name: String(item.name || '\u9152\u5e97'),
+          image: String(item.main_image || item.image_url || DEFAULT_IMAGE),
+          score: Number(item.score || 4.6),
+          price: Number(item.min_price || item.price || 0),
+          tags,
+          location: String(item.address || ''),
+          star: Number(item.star_level || 0),
+          city: String(item.city || ''),
+          availableStock: Number(item.available_stock || 0),
         }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoading(false)
-      }
+      })
+      setList(hotelList)
+    } catch (error) {
+      console.error(error)
+      Taro.showToast({ title: '\u52a0\u8f7d\u9152\u5e97\u5931\u8d25', icon: 'none' })
+    } finally {
+      setLoading(false)
     }
-    fetchHotels()
-  }, [city, userInfo?.id])
+  }
 
-  // Filter Logic
+  const fetchFavorites = async () => {
+    if (!userInfo?.id) return
+    try {
+      const res = await get(`/favorites/list?user_id=${userInfo.id}`)
+      const favHotels: Hotel[] = (Array.isArray(res) ? res : []).map((item: any) => ({
+        id: String(item.id),
+        name: String(item.name || '\u9152\u5e97'),
+        image: String(item.image_url || item.main_image || DEFAULT_IMAGE),
+        score: Number(item.score || 4.6),
+        price: Number(item.min_price || item.price || 0),
+        tags: normalizeTags(item.tags),
+        location: String(item.address || ''),
+        star: Number(item.star_level || 0),
+      }))
+      setFavorites(favHotels)
+    } catch (error) {
+      console.error('fetchFavorites error:', error)
+    }
+  }
+
   useEffect(() => {
-    let res = list
+    fetchHotels()
+  }, [city, startDate, endDate])
 
-    // 1. Keyword filter
-    if (keyword) {
-      res = res.filter(h => h.name.includes(keyword) || h.tags.includes(keyword))
+  useEffect(() => {
+    fetchFavorites()
+  }, [userInfo?.id])
+
+  usePullDownRefresh(() => {
+    setList([])
+    setSelectedFilters([])
+    Promise.all([fetchHotels(), fetchFavorites()]).finally(() => {
+      Taro.stopPullDownRefresh()
+    })
+  })
+
+  const filteredList = useMemo(() => {
+    let result = [...list]
+
+    if (keyword.trim()) {
+      const key = keyword.trim()
+      result = result.filter((h) => h.name.includes(key) || h.location?.includes(key) || h.tags.some((t) => t.includes(key)))
     }
 
-    // 2. Price filter
-    if (maxPrice < 10000 || minPrice > 0) {
-      res = res.filter(h => h.price >= minPrice && h.price <= maxPrice)
+    if (minPrice > 0 || maxPrice < 10000) {
+      result = result.filter((h) => h.price >= minPrice && h.price <= maxPrice)
     }
 
-    // 3. Star filter
     if (starLevels.length > 0) {
-      // Map string levels to numbers
-      // ['二星/经济', '三星/舒适', '四星/高档', '五星/豪华']
-      const targetStars: number[] = []
-      if (starLevels.includes('二星/经济')) targetStars.push(2)
-      if (starLevels.includes('三星/舒适')) targetStars.push(3)
-      if (starLevels.includes('四星/高档')) targetStars.push(4)
-      if (starLevels.includes('五星/豪华')) targetStars.push(5)
-      
+      const targetStars = starLevels.map((s) => parseStarOption(s)).filter((x): x is number => x !== null)
       if (targetStars.length > 0) {
-        res = res.filter(h => h.star && targetStars.includes(h.star))
+        result = result.filter((h) => Number(h.star || 0) > 0 && targetStars.includes(Number(h.star)))
       }
     }
 
-    // 4. Chip filters (simple implementation)
     if (selectedFilters.length > 0) {
-      // Example: '含早餐' -> check tags or just ignore for now if data missing
-      // For demo, we just simulate filtering if tag matches
-      // res = res.filter(...)
+      result = result.filter((h) => selectedFilters.every((tag) => h.tags.includes(tag)))
     }
 
-    setFilteredList(res)
-  }, [list, keyword, minPrice, maxPrice, starLevels, selectedFilters])
+    return result
+  }, [keyword, list, maxPrice, minPrice, selectedFilters, starLevels])
+
+  const navigateLoginWithToast = (title: string) => {
+    Taro.showToast({ title, icon: 'none' })
+    setTimeout(() => {
+      Taro.navigateTo({ url: '/pages/login/index' })
+    }, 350)
+  }
+
+  const toggleFav = async (e: any, hotel: Hotel) => {
+    e.stopPropagation()
+    if (!userInfo?.id) {
+      navigateLoginWithToast('请先登录后再收藏')
+      return
+    }
+    if (isFavorite(hotel.id)) {
+      removeFavorite(hotel.id)
+      try {
+        await post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotel.id })
+      } catch (error) {
+        addFavorite(hotel)
+        Taro.showToast({ title: '\u53d6\u6d88\u6536\u85cf\u5931\u8d25', icon: 'none' })
+      }
+      return
+    }
+
+    addFavorite(hotel)
+    try {
+      await post('/favorites/add', { user_id: userInfo.id, hotel_id: hotel.id })
+    } catch (error) {
+      removeFavorite(hotel.id)
+      Taro.showToast({ title: '\u6536\u85cf\u5931\u8d25', icon: 'none' })
+    }
+  }
+
+  const goDetail = (id: string) => {
+    Taro.navigateTo({
+      url: `/pages/detail/index?id=${id}&checkIn=${encodeURIComponent(startDate)}&checkOut=${encodeURIComponent(endDate)}`,
+    })
+  }
+
+  const handleBookClick = (e: any, hotelId: string) => {
+    e.stopPropagation()
+    if (!userInfo?.id) {
+      navigateLoginWithToast('请先登录后再预订')
+      return
+    }
+    goDetail(hotelId)
+  }
 
   const openFilter = () => {
     setLocalMinPrice(minPrice)
@@ -136,105 +228,80 @@ const ListPage = () => {
 
   const toggleLocalStar = (star: string) => {
     if (localStars.includes(star)) {
-      setLocalStars(localStars.filter(s => s !== star))
-    } else {
-      setLocalStars([...localStars, star])
+      setLocalStars(localStars.filter((s) => s !== star))
+      return
     }
-  }
-
-  const priceOptions = [
-    { label: '不限', min: 0, max: 10000 },
-    { label: '¥150以下', min: 0, max: 150 },
-    { label: '¥150-300', min: 150, max: 300 },
-    { label: '¥300-450', min: 300, max: 450 },
-    { label: '¥450-600', min: 450, max: 600 },
-    { label: '¥600-1000', min: 600, max: 1000 },
-    { label: '¥1000以上', min: 1000, max: 10000 }
-  ]
-
-  const starOptions = ['二星/经济', '三星/舒适', '四星/高档', '五星/豪华']
-
-  const toggleFav = async (e: any, hotel: Hotel) => {
-    e.stopPropagation()
-    if (isFavorite(hotel.id)) {
-      removeFavorite(hotel.id)
-      if (userInfo?.id) {
-        await post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotel.id }).catch(err => {
-          console.error(err)
-          addFavorite(hotel) // Revert
-        })
-      }
-    } else {
-      addFavorite(hotel)
-      if (userInfo?.id) {
-        await post('/favorites/add', { user_id: userInfo.id, hotel_id: hotel.id }).catch(err => {
-          console.error(err)
-          removeFavorite(hotel.id) // Revert
-        })
-      }
-    }
-  }
-
-  const goDetail = (id: string) => {
-    Taro.navigateTo({
-      url: `/pages/detail/index?id=${id}`,
-      fail: (err) => {
-        console.error('Navigate failed:', err)
-        // Fallback if navigateTo fails (e.g. if mistakenly treated as tabbar page)
-        Taro.switchTab({ url: `/pages/detail/index` }).catch(() => {})
-      }
-    })
+    setLocalStars([...localStars, star])
   }
 
   const toggleChip = (chip: string) => {
     if (selectedFilters.includes(chip)) {
-      setSelectedFilters(selectedFilters.filter(f => f !== chip))
-    } else {
-      setSelectedFilters([...selectedFilters, chip])
+      setSelectedFilters(selectedFilters.filter((f) => f !== chip))
+      return
     }
+    setSelectedFilters([...selectedFilters, chip])
   }
 
-  const chips = ['2人', '房屋等级', '今夜特价', '免费取消', '自助入住', '近地铁', '可停车', '含早餐']
+  const chips = [
+    '\u514d\u8d39\u505c\u8f66',
+    '\u542b\u65e9\u9910',
+    '\u8fd1\u5730\u94c1',
+    '\u514d\u8d39\u53d6\u6d88',
+    '\u4eb2\u5b50\u53cb\u597d',
+    '\u5065\u8eab\u623f',
+    '\u6e38\u6cf3\u6c60',
+    '\u53ef\u5e26\u5ba0\u7269',
+  ]
+  const starOptions = ['2\u661f/\u7ecf\u6d4e', '3\u661f/\u8212\u9002', '4\u661f/\u9ad8\u6863', '5\u661f/\u8c6a\u534e']
+  const priceOptions = [
+    { label: '\u4e0d\u9650', min: 0, max: 10000 },
+    { label: '\u00a5150\u4ee5\u4e0b', min: 0, max: 150 },
+    { label: '\u00a5150-300', min: 150, max: 300 },
+    { label: '\u00a5300-450', min: 300, max: 450 },
+    { label: '\u00a5450-600', min: 450, max: 600 },
+    { label: '\u00a5600-1000', min: 600, max: 1000 },
+    { label: '\u00a51000\u4ee5\u4e0a', min: 1000, max: 10000 },
+  ]
 
   return (
     <View className="list-page-v2">
-      {/* Top Search Bar */}
       <View className="list-header">
         <View className="search-summary">
           <View className="row1">
-            <Text>{city} ▾</Text>
-            <Text className="date">{startDate.slice(5)} - {endDate.slice(5)}</Text>
-            <Text className="nights">共1晚</Text>
+            <Text>{city || '\u5168\u90e8\u57ce\u5e02'}</Text>
+            <Text className="date">
+              {dayjs(startDate).format('MM-DD')} - {dayjs(endDate).format('MM-DD')}
+            </Text>
+            <Text className="nights">{`\u5171${nights}\u665a`}</Text>
           </View>
           <View className="input-wrap">
-             <Search size={12} color="#999" className="icon" />
-             <Input
-               className="search-input"
-               placeholder="位置/民宿名/编号"
-               placeholderClass="placeholder"
-               value={keyword}
-               onInput={(e) => setKeyword(e.detail.value)}
-             />
+            <Search size={12} color="#999" className="icon" />
+            <Input
+              className="search-input"
+              placeholder="\u9152\u5e97\u540d/\u5730\u5740/\u6807\u7b7e"
+              value={keyword}
+              onInput={(e: any) => setKeyword(String(e.detail.value || ''))}
+            />
           </View>
         </View>
-        <View className="map-btn"><Location size={20} color="#25255F" /></View>
+        <View className="map-btn">
+          <Location size={20} color="#25255F" />
+        </View>
       </View>
 
-      {/* Filter Bar */}
       <View className="filter-bar">
-        {['位置/距离', '价格/等级', '人数/床数', '筛选/排序'].map((f, i) => (
-          <View key={i} className="filter-item" onClick={openFilter}>
-            <Text>{f}</Text>
+        {['\u4f4d\u7f6e', '\u4ef7\u683c/\u661f\u7ea7', '\u4eba\u6570/\u623f\u95f4', '\u7b5b\u9009'].map((text, idx) => (
+          <View key={idx} className="filter-item" onClick={openFilter}>
+            <Text>{text}</Text>
           </View>
         ))}
       </View>
 
-      {/* Chips */}
       <ScrollView scrollX className="chips-scroll" showScrollbar={false}>
         <View className="chips-flex">
-          {chips.map((chip, i) => (
-            <View 
-              key={i} 
+          {chips.map((chip) => (
+            <View
+              key={chip}
               className={`chip-item ${selectedFilters.includes(chip) ? 'active' : ''}`}
               onClick={() => toggleChip(chip)}
             >
@@ -244,104 +311,116 @@ const ListPage = () => {
         </View>
       </ScrollView>
 
-      {/* Hotel List */}
       <ScrollView scrollY className="hotel-list">
         {loading ? (
           <View className="skeleton-list">
-            {[1, 2, 3].map(i => (
+            {[1, 2, 3].map((i) => (
               <View key={i} className="sk-card">
-<Skeleton style={{ width: '100%', height: '160px' }} title animated rows={3} />
+                <Text>{'\u52a0\u8f7d\u4e2d...'}</Text>
               </View>
             ))}
           </View>
         ) : (
-          filteredList.map(hotel => (
+          filteredList.map((hotel) => (
             <View key={hotel.id} className="hotel-card" onClick={() => goDetail(hotel.id)}>
               <View className="img-wrapper">
-                <Image src={hotel.image} className="hotel-img" mode="aspectFill" />
-                <View className="badge">限时特价</View>
-                <View className="fav-btn" onClick={(e) => toggleFav(e, hotel)}>
+                <Image src={hotel.image || DEFAULT_IMAGE} className="hotel-img" mode="aspectFill" />
+                <View className="badge">
+                  {hotel.availableStock && hotel.availableStock > 0
+                    ? `\u5269\u4f59${hotel.availableStock}\u95f4`
+                    : '\u53ef\u9884\u8ba2'}
+                </View>
+                <View className="fav-btn" onClick={(e: any) => toggleFav(e, hotel)}>
                   {isFavorite(hotel.id) ? <HeartFill color="#DFA0C8" /> : <Heart color="#ccc" />}
                 </View>
               </View>
-              
+
               <View className="card-info">
                 <View className="name-row">
                   <Text className="name">{hotel.name}</Text>
                   <View className="score-box">
-                    <Text className="score">{hotel.score}</Text>
+                    <Text className="score">{Number(hotel.score || 0).toFixed(1)}</Text>
                     <StarFill color="#33C7F7" size={10} />
                   </View>
                 </View>
-                <Text className="distance">{hotel.location}</Text>
-                
+                <Text className="distance">{hotel.location || `${hotel.city || ''}`}</Text>
+
                 <View className="tags">
-                  {hotel.tags.map((t, idx) => <Text key={idx} className="tag">{t}</Text>)}
+                  {hotel.tags.slice(0, 4).map((tag) => (
+                    <Text key={tag} className="tag">
+                      {tag}
+                    </Text>
+                  ))}
                 </View>
-                
+
                 <View className="price-row">
                   <View className="price-left">
-                    <Text className="symbol">¥</Text>
-                    <Text className="price">{hotel.price}</Text>
-                    <Text className="origin">¥{Math.floor(hotel.price * 1.2)}</Text>
-                    <Text className="save">已省¥{Math.floor(hotel.price * 0.2)}</Text>
+                    <Text className="symbol">{'\u00a5'}</Text>
+                    <Text className="price">{hotel.price || 0}</Text>
                   </View>
-                  <Button size="small" className="book-btn" onClick={(e) => { e.stopPropagation(); goDetail(hotel.id) }}>预订</Button>
+                  <Button
+                    size="small"
+                    className="book-btn"
+                    onClick={(e: any) => handleBookClick(e, hotel.id)}
+                  >
+                    {'\u9884\u8ba2'}
+                  </Button>
                 </View>
               </View>
             </View>
           ))
         )}
-        {!loading && <View className="no-more">没有更多了</View>}
+        {!loading && <View className="no-more">{'\u6ca1\u6709\u66f4\u591a\u9152\u5e97\u4e86'}</View>}
       </ScrollView>
 
-      {/* Filter Popup */}
       <Popup visible={showFilter} position="bottom" onClose={() => setShowFilter(false)} round style={{ height: '60%' }}>
         <View className="filter-popup">
           <View className="popup-header">
-            <Text className="title">筛选条件</Text>
+            <Text className="title">{'\u7b5b\u9009\u6761\u4ef6'}</Text>
             <Close size={18} onClick={() => setShowFilter(false)} />
           </View>
           <ScrollView scrollY className="popup-body">
-             <View className="section">
-               <Text className="label">星级</Text>
-               <View className="stars">
-                 {starOptions.map(star => (
-                   <View 
-                     key={star} 
-                     className={`star-opt ${localStars.includes(star) ? 'active' : ''}`}
-                     onClick={() => toggleLocalStar(star)}
-                   >
-                     {star}
-                   </View>
-                 ))}
-               </View>
-             </View>
-             <View className="section">
-               <Text className="label">价格区间</Text>
-               <View className="price-opts">
-                 {priceOptions.map((p, i) => {
-                   const isActive = localMinPrice === p.min && localMaxPrice === p.max
-                   return (
-                     <View 
-                       key={i} 
-                       className={`opt-item ${isActive ? 'active' : ''}`}
-                       onClick={() => {
-                         setLocalMinPrice(p.min)
-                         setLocalMaxPrice(p.max)
-                       }}
-                     >
-                       {p.label}
-                     </View>
-                   )
-                 })}
-               </View>
-             </View>
+            <View className="section">
+              <Text className="label">{'\u661f\u7ea7'}</Text>
+              <View className="stars">
+                {starOptions.map((star) => (
+                  <View
+                    key={star}
+                    className={`star-opt ${localStars.includes(star) ? 'active' : ''}`}
+                    onClick={() => toggleLocalStar(star)}
+                  >
+                    {star}
+                  </View>
+                ))}
+              </View>
+            </View>
+            <View className="section">
+              <Text className="label">{'\u4ef7\u683c\u533a\u95f4'}</Text>
+              <View className="price-opts">
+                {priceOptions.map((p) => {
+                  const active = localMinPrice === p.min && localMaxPrice === p.max
+                  return (
+                    <View
+                      key={p.label}
+                      className={`opt-item ${active ? 'active' : ''}`}
+                      onClick={() => {
+                        setLocalMinPrice(p.min)
+                        setLocalMaxPrice(p.max)
+                      }}
+                    >
+                      {p.label}
+                    </View>
+                  )
+                })}
+              </View>
+            </View>
           </ScrollView>
           <View className="popup-footer">
-            <Button className="reset-btn" onClick={resetFilter}>重置</Button>
+            <Button className="reset-btn" onClick={resetFilter}>
+              {'\u91cd\u7f6e'}
+            </Button>
             <Button className="confirm-btn" type="primary" onClick={applyFilter}>
-              查看{filteredList.length}家
+              {`\u67e5\u770b${filteredList.length}\u5bb6`}
             </Button>
           </View>
         </View>

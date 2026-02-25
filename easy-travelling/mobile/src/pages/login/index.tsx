@@ -66,7 +66,7 @@ const LoginPage = () => {
    */
   const handleLogin = async () => {
     if (!agreed) {
-      Taro.showToast({ title: '请先阅读并同意协议', icon: 'none' })
+      Toast.show('请先勾选用户协议')
       return
     }
     if (!phone) {
@@ -99,7 +99,10 @@ const LoginPage = () => {
         // 后端返回结构为 { success, token, id, user: { ... } }
         // store 需要的是 { id, username, avatar, ... }
         // 因此优先使用 res.user，如果不存在则使用 res（兼容旧接口）
-        const userInfo = res.user || res;
+        const userInfo = {
+          ...(res.user || res),
+          phone: (res.user && res.user.phone) || res.phone || phone
+        };
         login(userInfo)
         
         Taro.showToast({ title: '登录成功', icon: 'success' })
@@ -123,7 +126,7 @@ const LoginPage = () => {
    */
   const handleWechatLogin = async () => {
     if (!agreed) {
-      Taro.showToast({ title: '请先阅读并同意协议', icon: 'none' })
+      Toast.show('请先勾选用户协议')
       return
     }
 

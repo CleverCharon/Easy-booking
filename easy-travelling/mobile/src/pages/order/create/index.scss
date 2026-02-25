@@ -1,60 +1,248 @@
-.order-create-page {
+.order-create-v2 {
   height: 100vh;
-  background: #f5f5f5;
   display: flex;
   flex-direction: column;
+  background: linear-gradient(180deg, #ecf3ff 0%, #f5f8ff 40%, #f3f6fb 100%);
+  color: #25255f;
 
   .nav-bar {
-    background: #fff;
-    padding: 12px 16px;
-    padding-top: calc(12px + env(safe-area-inset-top));
+    height: 46px;
+    padding: calc(env(safe-area-inset-top) + 8px) 14px 8px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid #eee;
-    .title { font-weight: bold; font-size: 16px; }
+    justify-content: center;
+    position: relative;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 14px rgba(44, 67, 155, 0.08);
+
+    .back-btn {
+      position: absolute;
+      left: 14px;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(44, 67, 155, 0.08);
+      color: #2c439b;
+    }
+
+    .title {
+      font-size: 17px;
+      font-weight: 700;
+    }
   }
 
-  .card {
+  .page-scroll {
+    flex: 1;
+    box-sizing: border-box;
+    padding: 12px;
+  }
+
+  .hotel-card {
     background: #fff;
-    margin: 12px;
-    padding: 16px;
-    border-radius: 8px;
-    
-    &.hotel-info {
-      .h-name { font-weight: bold; font-size: 16px; display: block; margin-bottom: 4px; }
-      .r-name { font-size: 14px; color: #333; display: block; margin-bottom: 4px; }
-      .dates { font-size: 12px; color: #666; }
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 22px rgba(44, 67, 155, 0.1);
+    margin-bottom: 12px;
+
+    .hotel-cover {
+      width: 100%;
+      height: 140px;
+      display: block;
+      background: #e8edf9;
     }
 
-    &.form {
-      .section-title { font-weight: bold; font-size: 14px; margin-bottom: 12px; display: block; }
+    .hotel-body {
+      padding: 12px;
     }
 
-    &.price-info {
-      .total-price { color: #fa2c19; font-weight: bold; }
+    .hotel-name {
+      display: block;
+      font-size: 17px;
+      font-weight: 700;
+      color: #25255f;
+    }
+
+    .room-name {
+      display: block;
+      margin-top: 6px;
+      color: #66739b;
+      font-size: 13px;
+    }
+
+    .price {
+      display: block;
+      margin-top: 6px;
+      color: #2c439b;
+      font-size: 20px;
+      font-weight: 700;
+    }
+  }
+
+  .date-card,
+  .form-card,
+  .price-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 10px 22px rgba(44, 67, 155, 0.06);
+    margin-bottom: 12px;
+  }
+
+  .date-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .date-col {
+      .label {
+        color: #7380a8;
+        font-size: 12px;
+      }
+      .date {
+        margin-top: 5px;
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+        color: #25255f;
+      }
+    }
+
+    .mid {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 84px;
+
+      .nights {
+        font-size: 12px;
+        color: #2c439b;
+        background: #eaf6ff;
+        border-radius: 999px;
+        padding: 2px 10px;
+      }
+
+      .line {
+        margin-top: 8px;
+        width: 84px;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(44, 67, 155, 0.2), rgba(51, 199, 247, 0.65));
+      }
+    }
+  }
+
+  .section-title {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: #2b346a;
+    margin-bottom: 8px;
+  }
+
+  .form-row {
+    padding: 10px 0;
+    border-bottom: 1px solid #f2f4fb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .row-label {
+      min-width: 84px;
+      color: #65739c;
+      font-size: 13px;
+    }
+
+    .row-input {
+      flex: 1;
+      text-align: right;
+      font-size: 14px;
+      color: #25255f;
+    }
+
+    .counter {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      .counter-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: #f1f5ff;
+        color: #2c439b;
+        font-size: 18px;
+        line-height: 26px;
+        text-align: center;
+      }
+
+      .counter-num {
+        font-size: 15px;
+        font-weight: 600;
+        color: #2b3368;
+      }
+    }
+  }
+
+  .price-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #67739c;
+    margin-top: 8px;
+
+    &.total {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed #dce2f3;
+      font-size: 16px;
+      color: #2c439b;
+      font-weight: 700;
     }
   }
 
   .bottom-bar {
-    margin-top: auto;
-    background: #fff;
-    padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(44, 67, 155, 0.1);
+    padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-top: 1px solid #eee;
 
-    .price-col {
-      .label { font-size: 12px; color: #666; }
-      .val { font-size: 20px; font-weight: bold; color: #fa2c19; margin-left: 4px; }
+    .amount {
+      .label {
+        color: #7c88ad;
+        font-size: 12px;
+      }
+
+      .value {
+        display: block;
+        margin-top: 1px;
+        color: #2c439b;
+        font-size: 24px;
+        font-weight: 700;
+      }
     }
 
     .submit-btn {
-      width: 120px;
-      background: linear-gradient(to right, #2C439B, #33C7F7);
+      width: 132px;
+      height: 40px;
+      line-height: 40px;
+      border-radius: 999px;
       border: none;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #2c439b, #33c7f7);
+      box-shadow: 0 8px 18px rgba(44, 67, 155, 0.24);
     }
   }
 }

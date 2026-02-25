@@ -23,7 +23,7 @@ interface SearchState {
 }
 
 export const useSearchStore = create<SearchState>((set) => ({
-  city: '广州',
+  city: '',
   startDate: dayjs().format('YYYY-MM-DD'),
   endDate: dayjs().add(1, 'day').format('YYYY-MM-DD'),
   keyword: '',
@@ -31,18 +31,14 @@ export const useSearchStore = create<SearchState>((set) => ({
   children: 0,
   roomCount: 1,
   minPrice: 0,
-  maxPrice: 10000, // 0-10000 means unlimited or max
+  maxPrice: 10000,
   starLevels: [],
   tags: [],
   setCity: (city) => set({ city }),
   setDates: (startDate, endDate) => set({ startDate, endDate }),
   setKeyword: (keyword) => set({ keyword }),
   setPeople: (adults, children, roomCount = 1) => set({ adults, children, roomCount }),
-  setPriceRange: (minPrice, maxPrice) => {
-    set({ minPrice, maxPrice })
-  },
-  setStarLevels: (starLevels) => {
-    set({ starLevels })
-  },
+  setPriceRange: (minPrice, maxPrice) => set({ minPrice, maxPrice }),
+  setStarLevels: (starLevels) => set({ starLevels }),
   setTags: (tags) => set({ tags }),
 }))

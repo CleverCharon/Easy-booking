@@ -1,3 +1,4 @@
 export default definePageConfig({
-  navigationBarTitleText: '我的订单'
+  navigationBarTitleText: '\u6211\u7684\u8ba2\u5355',
+  enablePullDownRefresh: true,
 })

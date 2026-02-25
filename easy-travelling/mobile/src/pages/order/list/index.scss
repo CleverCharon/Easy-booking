@@ -1,83 +1,246 @@
-.order-list-page {
+.order-list-v2 {
   height: 100vh;
-  background: #f5f5f5;
   display: flex;
   flex-direction: column;
+  background: linear-gradient(180deg, #edf4ff 0%, #f6f8ff 38%, #f4f6fb 100%);
+  color: #25255f;
 
   .nav-bar {
-    background: #fff;
-    padding: 12px 16px;
-    padding-top: calc(12px + env(safe-area-inset-top));
+    height: 46px;
+    padding: calc(env(safe-area-inset-top) + 8px) 14px 8px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    .title { font-weight: bold; font-size: 16px; }
+    justify-content: center;
+    position: relative;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 14px rgba(44, 67, 155, 0.08);
+
+    .back-btn {
+      position: absolute;
+      left: 14px;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(44, 67, 155, 0.08);
+      color: #2c439b;
+    }
+
+    .title {
+      font-size: 17px;
+      font-weight: 700;
+    }
   }
 
-  .order-tabs {
-    background: #fff;
+  .tabs-scroll {
+    margin-top: 12px;
+  }
+
+  .tabs-wrap {
+    display: inline-flex;
+    gap: 8px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  .tab-item {
+    min-width: 72px;
+    text-align: center;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(44, 67, 155, 0.13);
+    background: rgba(255, 255, 255, 0.8);
+    color: #66739d;
+    font-size: 13px;
+
+    &.active {
+      color: #fff;
+      border-color: transparent;
+      background: linear-gradient(135deg, #2c439b, #33c7f7);
+      box-shadow: 0 6px 14px rgba(44, 67, 155, 0.23);
+      font-weight: 600;
+    }
   }
 
   .list-content {
     flex: 1;
-    overflow-y: auto;
     padding: 12px;
     box-sizing: border-box;
+  }
 
-    .empty-state {
-      text-align: center;
-      padding-top: 100px;
-      color: #999;
+  .order-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 10px 22px rgba(37, 37, 95, 0.08);
+    margin-bottom: 12px;
+    overflow: hidden;
+    padding: 12px;
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .hotel-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #25255f;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 8px;
     }
 
-    .order-card {
+    .status {
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-weight: 600;
+
+      &.pending {
+        color: #8f5b00;
+        background: #fff4d8;
+      }
+      &.paid {
+        color: #2c439b;
+        background: #e8f0ff;
+      }
+      &.cancelled {
+        color: #a03d3d;
+        background: #ffe9e9;
+      }
+      &.completed {
+        color: #2b8651;
+        background: #e8f9ee;
+      }
+    }
+  }
+
+  .card-body {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+
+    .hotel-img {
+      width: 96px;
+      height: 88px;
+      border-radius: 10px;
+      background: #eef2ff;
+      flex-shrink: 0;
+    }
+
+    .meta {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+
+      .room-name {
+        font-size: 14px;
+        color: #313b6c;
+        font-weight: 600;
+      }
+
+      .dates {
+        font-size: 12px;
+        color: #7782a9;
+      }
+
+      .price {
+        font-size: 21px;
+        font-weight: 700;
+        color: #2c439b;
+      }
+    }
+  }
+
+  .card-actions {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #edf1fa;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+
+    .minor-btn,
+    .major-btn {
+      height: 32px;
+      line-height: 32px;
+      border-radius: 999px;
+      font-size: 12px;
+      padding: 0 14px;
+    }
+
+    .minor-btn {
+      color: #2c439b;
+      border: 1px solid rgba(44, 67, 155, 0.18);
       background: #fff;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
-
-      .card-header {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 12px;
-        .hotel-name { font-weight: bold; font-size: 14px; }
-        .status { font-size: 12px; color: #2C439B; }
-      }
-
-      .card-body {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 12px;
-
-        .hotel-img {
-          width: 80px;
-          height: 80px;
-          border-radius: 4px;
-          background: #eee;
-        }
-
-        .info {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          .room-name { font-size: 14px; color: #333; }
-          .dates { font-size: 12px; color: #999; }
-          .price { font-size: 16px; font-weight: bold; color: #333; }
-        }
-      }
-
-      .card-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-        border-top: 1px solid #f9f9f9;
-        padding-top: 12px;
-
-        .action-btn {
-          min-width: 80px;
-        }
-      }
     }
+
+    .major-btn {
+      color: #fff;
+      border: none;
+      background: linear-gradient(135deg, #2c439b, #33c7f7);
+    }
+  }
+
+  .empty-wrap {
+    margin-top: 120px;
+    text-align: center;
+
+    .empty-title {
+      color: #414b7a;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .empty-sub {
+      margin-top: 8px;
+      color: #8f99ba;
+      font-size: 13px;
+    }
+
+    .go-btn {
+      margin-top: 14px;
+      width: 128px;
+      height: 36px;
+      line-height: 36px;
+      border-radius: 999px;
+      border: none;
+      color: #fff;
+      background: linear-gradient(135deg, #2c439b, #33c7f7);
+      font-size: 13px;
+    }
+  }
+}
+
+.order-list-v2.auth-empty {
+  align-items: center;
+  justify-content: center;
+  background: #f4f7ff;
+  text-align: center;
+
+  .empty-title {
+    color: #4f5a84;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .login-btn {
+    margin-top: 14px;
+    width: 120px;
+    height: 36px;
+    line-height: 36px;
+    border: none;
+    border-radius: 999px;
+    color: #fff;
+    background: linear-gradient(135deg, #2c439b, #33c7f7);
   }
 }
