@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { View, Text, Image, ScrollView } from '@tarojs/components'
 import Taro, { usePullDownRefresh, useRouter } from '@tarojs/taro'
 import { Button, Calendar, Input } from '@nutui/nutui-react-taro'
@@ -63,7 +63,7 @@ const CreateOrder = () => {
       const res = await get(
         `/hotels/${hotelId}?check_in_date=${encodeURIComponent(checkInDate)}&check_out_date=${encodeURIComponent(checkOutDate)}`
       )
-      setHotelName(String(res?.name || '\u9152\u5e97'))
+      setHotelName(String(res?.name || '酒店'))
       setImage(String(res?.main_image || res?.image_url || DEFAULT_IMAGE))
 
       const roomList = Array.isArray(res?.rooms) ? res.rooms : []
@@ -82,7 +82,7 @@ const CreateOrder = () => {
       const limit = Math.max(1, remain)
       setRoom({
         id: Number(source.id),
-        name: String(source.name || '\u6807\u51c6\u623f'),
+        name: String(source.name || '标准房'),
         price: Number(source.plans?.[0]?.price || source.price || 0),
         remainCount: remain,
         soldOut: Boolean(source.sold_out || remain <= 0),
@@ -91,7 +91,7 @@ const CreateOrder = () => {
       setRoomCount((prev) => Math.min(Math.max(1, prev), limit))
     } catch (error) {
       console.error(error)
-      Taro.showToast({ title: '\u52a0\u8f7d\u9884\u8ba2\u4fe1\u606f\u5931\u8d25', icon: 'none' })
+      Taro.showToast({ title: '加载预订信息失败', icon: 'none' })
     } finally {
       setLoading(false)
     }
@@ -133,23 +133,23 @@ const CreateOrder = () => {
 
   const validateForm = () => {
     if (!guestName.trim()) {
-      Taro.showToast({ title: '\u8bf7\u8f93\u5165\u5165\u4f4f\u4eba\u59d3\u540d', icon: 'none' })
+      Taro.showToast({ title: '请输入入住人姓名', icon: 'none' })
       return false
     }
     if (!/^1\d{10}$/.test(guestPhone.trim())) {
-      Taro.showToast({ title: '\u8bf7\u8f93\u5165\u6b63\u786e\u624b\u673a\u53f7', icon: 'none' })
+      Taro.showToast({ title: '请输入正确手机号', icon: 'none' })
       return false
     }
     if (!/^(\d{15}|\d{17}[\dXx])$/.test(guestIdCard.trim())) {
-      Taro.showToast({ title: '\u8bf7\u8f93\u5165\u6b63\u786e\u8eab\u4efd\u8bc1\u53f7', icon: 'none' })
+      Taro.showToast({ title: '请输入正确身份证号', icon: 'none' })
       return false
     }
     if (!room || room.soldOut || room.remainCount <= 0) {
-      Taro.showToast({ title: '\u8be5\u623f\u578b\u4e0d\u53ef\u9884\u8ba2', icon: 'none' })
+      Taro.showToast({ title: '该房型不可预订', icon: 'none' })
       return false
     }
     if (roomCount > Math.max(1, room.remainCount)) {
-      Taro.showToast({ title: '\u8d85\u51fa\u5e93\u5b58\u53ef\u7528\u6570\u91cf', icon: 'none' })
+      Taro.showToast({ title: '超出库存可用数量', icon: 'none' })
       return false
     }
     return true
@@ -157,7 +157,7 @@ const CreateOrder = () => {
 
   const handleSubmit = async () => {
     if (!isLogin || !userInfo?.id) {
-      Taro.showToast({ title: '\u8bf7\u5148\u767b\u5f55', icon: 'none' })
+      Taro.showToast({ title: '请先登录', icon: 'none' })
       setTimeout(() => Taro.navigateTo({ url: '/pages/login/index' }), 500)
       return
     }
@@ -165,7 +165,7 @@ const CreateOrder = () => {
 
     setSubmitting(true)
     try {
-      await post('/bookings/create', {
+      const result: any = await post('/bookings/create', {
         user_id: userInfo.id,
         user_name: guestName.trim(),
         user_phone: guestPhone.trim(),
@@ -180,13 +180,18 @@ const CreateOrder = () => {
         total_price: totalPrice,
       })
 
-      Taro.showToast({ title: '\u9884\u8ba2\u6210\u529f', icon: 'success' })
+      const orderId = Number(result?.orderId || 0)
+      if (!orderId) {
+        throw new Error('创建订单失败')
+      }
+
+      Taro.showToast({ title: '订单已创建', icon: 'success' })
       setTimeout(() => {
-        Taro.redirectTo({ url: '/pages/order/list/index' })
+        Taro.redirectTo({ url: `/pages/order/pay/index?id=${orderId}` })
       }, 600)
     } catch (error: any) {
       console.error(error)
-      Taro.showToast({ title: error?.message || '\u9884\u8ba2\u5931\u8d25', icon: 'none' })
+      Taro.showToast({ title: error?.message || '预订失败', icon: 'none' })
     } finally {
       setSubmitting(false)
     }
@@ -198,53 +203,53 @@ const CreateOrder = () => {
         <View className="back-btn" onClick={() => Taro.navigateBack()}>
           <ArrowLeft />
         </View>
-        <Text className="title">{'\u786e\u8ba4\u9884\u8ba2'}</Text>
+        <Text className="title">{'确认预订'}</Text>
       </View>
 
       <ScrollView scrollY className="page-scroll">
         <View className="hotel-card">
           <Image src={image} className="hotel-cover" mode="aspectFill" />
           <View className="hotel-body">
-            <Text className="hotel-name">{loading ? '\u52a0\u8f7d\u4e2d...' : hotelName || '\u9152\u5e97'}</Text>
+            <Text className="hotel-name">{loading ? '加载中...' : hotelName || '酒店'}</Text>
             <Text className="room-name">
-              {room?.name || '\u623f\u578b\u5f85\u786e\u8ba4'}
-              {room ? ` - \u5269\u4f59${Math.max(0, room.remainCount)}\u95f4` : ''}
+              {room?.name || '房型待确认'}
+              {room ? ` - 剩余${Math.max(0, room.remainCount)}间` : ''}
             </Text>
-            <Text className="price">{`\u00a5${room?.price || 0} / \u665a`}</Text>
+            <Text className="price">{`¥${room?.price || 0} / 晚`}</Text>
           </View>
         </View>
 
         <View className="date-card" onClick={() => setShowCalendar(true)}>
           <View className="date-col">
-            <Text className="label">{'\u5165\u4f4f'}</Text>
+            <Text className="label">{'入住'}</Text>
             <Text className="date">{checkInLabel}</Text>
           </View>
           <View className="mid">
-            <Text className="nights">{`\u5171${nights}\u665a`}</Text>
+            <Text className="nights">{`共${nights}晚`}</Text>
             <Text className="line" />
           </View>
           <View className="date-col">
-            <Text className="label">{'\u79bb\u5e97'}</Text>
+            <Text className="label">{'离店'}</Text>
             <Text className="date">{checkOutLabel}</Text>
           </View>
         </View>
 
         <View className="form-card">
-          <Text className="section-title">{'\u5165\u4f4f\u4fe1\u606f'}</Text>
+          <Text className="section-title">{'入住信息'}</Text>
           <View className="form-row">
-            <Text className="row-label">{'\u5165\u4f4f\u4eba\u59d3\u540d'}</Text>
+            <Text className="row-label">{'入住人姓名'}</Text>
             <Input
               className="row-input"
-              placeholder="\u8bf7\u8f93\u5165\u59d3\u540d"
+              placeholder="请输入姓名"
               value={guestName}
               onChange={(val: any) => setGuestName(String(val || ''))}
             />
           </View>
           <View className="form-row">
-            <Text className="row-label">{'\u624b\u673a\u53f7\u7801'}</Text>
+            <Text className="row-label">{'手机号码'}</Text>
             <Input
               className="row-input"
-              placeholder="\u8bf7\u8f93\u5165\u624b\u673a\u53f7"
+              placeholder="请输入手机号"
               type="number"
               value={guestPhone}
               onChange={(val: any) => setGuestPhone(String(val || ''))}
@@ -252,17 +257,17 @@ const CreateOrder = () => {
             />
           </View>
           <View className="form-row">
-            <Text className="row-label">{'\u8eab\u4efd\u8bc1\u53f7'}</Text>
+            <Text className="row-label">{'身份证号'}</Text>
             <Input
               className="row-input"
-              placeholder="\u7528\u4e8e\u5b9e\u540d\u5165\u4f4f"
+              placeholder="用于实名入住"
               value={guestIdCard}
               onChange={(val: any) => setGuestIdCard(String(val || ''))}
               maxLength={18}
             />
           </View>
           <View className="form-row">
-            <Text className="row-label">{'\u9884\u8ba2\u95f4\u6570'}</Text>
+            <Text className="row-label">{'预订间数'}</Text>
             <View className="counter">
               <View className="counter-btn" onClick={() => setRoomCount((c) => Math.max(1, c - 1))}>
                 -
@@ -276,25 +281,25 @@ const CreateOrder = () => {
         </View>
 
         <View className="price-card">
-          <Text className="section-title">{'\u8d39\u7528\u660e\u7ec6'}</Text>
+          <Text className="section-title">{'费用明细'}</Text>
           <View className="price-line">
-            <Text>{`\u623f\u8d39 (\u00a5${room?.price || 0} x ${nights}\u665a x ${roomCount}\u95f4)`}</Text>
-            <Text>{`\u00a5${totalPrice}`}</Text>
+            <Text>{`房费 (¥${room?.price || 0} x ${nights}晚 x ${roomCount}间)`}</Text>
+            <Text>{`¥${totalPrice}`}</Text>
           </View>
           <View className="price-line total">
-            <Text>{'\u603b\u8ba1'}</Text>
-            <Text>{`\u00a5${totalPrice}`}</Text>
+            <Text>{'总计'}</Text>
+            <Text>{`¥${totalPrice}`}</Text>
           </View>
         </View>
       </ScrollView>
 
       <View className="bottom-bar">
         <View className="amount">
-          <Text className="label">{'\u5408\u8ba1'}</Text>
-          <Text className="value">{`\u00a5${totalPrice}`}</Text>
+          <Text className="label">{'合计'}</Text>
+          <Text className="value">{`¥${totalPrice}`}</Text>
         </View>
         <Button className="submit-btn" loading={submitting} onClick={handleSubmit}>
-          {'\u63d0\u4ea4\u8ba2\u5355'}
+          {'提交订单'}
         </Button>
       </View>
 
@@ -311,3 +316,4 @@ const CreateOrder = () => {
 }
 
 export default CreateOrder
+

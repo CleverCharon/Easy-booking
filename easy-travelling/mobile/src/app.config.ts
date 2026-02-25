@@ -1,4 +1,4 @@
-export default defineAppConfig({
+﻿export default defineAppConfig({
   pages: [
     'pages/home/index',
     'pages/list/index',
@@ -6,6 +6,7 @@ export default defineAppConfig({
     'pages/favorite/index',
     'pages/my/index',
     'pages/order/create/index',
+    'pages/order/pay/index',
     'pages/order/list/index',
     'pages/login/index',
     'pages/login/setup/index',
@@ -13,7 +14,7 @@ export default defineAppConfig({
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: '#fff',
-    navigationBarTitleText: '\u6613\u5bbf',
+    navigationBarTitleText: '易宿',
     navigationBarTextStyle: 'black',
   },
   animation: false,
@@ -25,28 +26,29 @@ export default defineAppConfig({
     list: [
       {
         pagePath: 'pages/home/index',
-        text: '\u9996\u9875',
+        text: '首页',
         iconPath: 'assets/images/tabbar/tab-home.png',
         selectedIconPath: 'assets/images/tabbar/home-active.png',
       },
       {
         pagePath: 'pages/list/index',
-        text: '\u641c\u7d22',
+        text: '搜索',
         iconPath: 'assets/images/tabbar/tab-search.png',
         selectedIconPath: 'assets/images/tabbar/tab-search.png',
       },
       {
         pagePath: 'pages/favorite/index',
-        text: '\u6536\u85cf',
+        text: '收藏',
         iconPath: 'assets/images/tabbar/tab-data.png',
         selectedIconPath: 'assets/images/tabbar/tab-data.png',
       },
       {
         pagePath: 'pages/my/index',
-        text: '\u6211\u7684',
+        text: '我的',
         iconPath: 'assets/images/tabbar/tab-profile.png',
         selectedIconPath: 'assets/images/tabbar/tab-profile.png',
       },
     ],
   },
 })
+

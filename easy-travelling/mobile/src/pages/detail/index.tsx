@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import Taro, { usePullDownRefresh, useRouter } from '@tarojs/taro'
 import { View, Text, Image, ScrollView } from '@tarojs/components'
 import { Button, Calendar, Swiper, SwiperItem } from '@nutui/nutui-react-taro'
@@ -60,6 +60,19 @@ const normalizeTags = (value: unknown): string[] => {
   return []
 }
 
+const normalizeImageList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((x) => String(x || '').trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/[，,]/)
+      .map((x) => x.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 const DetailPage = () => {
   const router = useRouter()
   const id = String(router.params.id || '')
@@ -106,7 +119,10 @@ const DetailPage = () => {
   }
 
   const fetchDetail = async () => {
-    if (!id) return
+    if (!id) {
+      Taro.showToast({ title: '缺少酒店ID', icon: 'none' })
+      return
+    }
     setLoading(true)
     try {
       const res = await get(
@@ -123,7 +139,7 @@ const DetailPage = () => {
       }
     } catch (error) {
       console.error(error)
-      Taro.showToast({ title: '\u52a0\u8f7d\u9152\u5e97\u8be6\u60c5\u5931\u8d25', icon: 'none' })
+      Taro.showToast({ title: '加载酒店详情失败', icon: 'none' })
     } finally {
       setLoading(false)
     }
@@ -157,10 +173,16 @@ const DetailPage = () => {
   }, [roomList, selectedRoom])
 
   const hotelImages = useMemo(() => {
-    const fromServer = Array.isArray(hotel?.images) ? hotel!.images! : []
-    if (fromServer.length > 0) return fromServer
-    return [hotel?.main_image || hotel?.image_url || DEFAULT_IMAGE]
-  }, [hotel])
+    const all = new Set<string>()
+    normalizeImageList(hotel?.images).forEach((url) => all.add(url))
+    normalizeImageList(hotel?.main_image).forEach((url) => all.add(url))
+    normalizeImageList(hotel?.image_url).forEach((url) => all.add(url))
+    roomList.forEach((room) => {
+      normalizeImageList(room.image_url).forEach((url) => all.add(url))
+    })
+    const images = Array.from(all)
+    return images.length > 0 ? images : [DEFAULT_IMAGE]
+  }, [hotel, roomList])
 
   const navigateLoginWithToast = (title: string) => {
     Taro.showToast({ title, icon: 'none' })
@@ -174,74 +196,17 @@ const DetailPage = () => {
     }
     try {
       if (isFavorite) {
-        await post('/favorites/remove', { user_id: userInfo.id, hotel_id: id });
-        setIsFavorite(false);
-        Taro.showToast({ title: '已取消收藏', icon: 'none' });
         await post('/favorites/remove', { user_id: userInfo.id, hotel_id: id })
         setIsFavorite(false)
-        Taro.showToast({ title: '\u5df2\u53d6\u6d88\u6536\u85cf', icon: 'none' })
+        Taro.showToast({ title: '已取消收藏', icon: 'none' })
       } else {
-        await post('/favorites/add', { user_id: userInfo.id, hotel_id: id });
-        setIsFavorite(true);
-        Taro.showToast({ title: '收藏成功', icon: 'success' });
         await post('/favorites/add', { user_id: userInfo.id, hotel_id: id })
         setIsFavorite(true)
-        Taro.showToast({ title: '\u6536\u85cf\u6210\u529f', icon: 'success' })
+        Taro.showToast({ title: '收藏成功', icon: 'success' })
       }
-    } catch (e) {
-      console.error('Favorite operation failed:', e);
-      Taro.showToast({ title: '操作失败', icon: 'none' });
-    }
-  };
-
-  /**
-   * 处理预订操作
-   */
-  // const handleBook = () => { ... } // Removed unused function
-
-  useEffect(() => {
-    const handleScroll = () => {
-      // 监听滚动位置以切换导航栏样式
-      if (window.scrollY > 100) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-  
-  const hotelImages = hotel?.images || [];
-  const roomTypes = hotel?.rooms?.map((r: any) => ({
-    id: r.id,
-    name: r.name,
-    tags: r.plans?.[0]?.name ? [r.plans[0].name] : [],
-    features: [`${r.area}㎡`, `最多${r.max_guests}人`],
-    price: r.plans?.[0]?.price || 999,
-    originalPrice: r.plans?.[0]?.price ? Math.floor(r.plans[0].price * 1.2) : 1299,
-    discount: '优惠价'
-  })) || [];
-
-  const handleDateChange = (param: any) => {
-    // 处理 NutUI 日历的范围选择结果
-    if (param && param.length >= 2) {
-      const start = new Date(param[0][3]);
-      const end = new Date(param[1][3]);
-      setCheckInDate(`${start.getMonth() + 1}月${start.getDate()}日`);
-      setCheckOutDate(`${end.getMonth() + 1}月${end.getDate()}日`);
-      
-      // 计算入住时长
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      setNights(diffDays);
-    }
-    setShowCalendar(false);
-  };
     } catch (error) {
       console.error(error)
-      Taro.showToast({ title: '\u64cd\u4f5c\u5931\u8d25', icon: 'none' })
+      Taro.showToast({ title: '操作失败', icon: 'none' })
     }
   }
 
@@ -266,11 +231,11 @@ const DetailPage = () => {
       return
     }
     if (!selectedRoomInfo) {
-      Taro.showToast({ title: '\u6682\u65e0\u53ef\u9884\u8ba2\u623f\u578b', icon: 'none' })
+      Taro.showToast({ title: '暂无可预订房型', icon: 'none' })
       return
     }
     if (selectedRoomInfo.sold_out || Number(selectedRoomInfo.remain_count || 0) <= 0) {
-      Taro.showToast({ title: '\u8be5\u623f\u578b\u5df2\u552e\u7f44', icon: 'none' })
+      Taro.showToast({ title: '该房型已售罄', icon: 'none' })
       return
     }
 
@@ -289,10 +254,10 @@ const DetailPage = () => {
           <View className="left-btn" onClick={() => Taro.navigateBack()}>
             <ArrowLeft color="#fff" />
           </View>
-          <Text className="nav-title">{hotel?.name || '\u9152\u5e97\u8be6\u60c5'}</Text>
+          <Text className="nav-title">{hotel?.name || '酒店详情'}</Text>
           <View className="right-btns">
             <View className="btn share-btn">
-              <Text className="share-text">{'\u5206\u4eab'}</Text>
+              <Text className="share-text">{'分享'}</Text>
             </View>
             <View className="btn" onClick={toggleFavorite}>
               {isFavorite ? <HeartFill color="#DFA0C8" /> : <Heart color="#fff" />}
@@ -303,8 +268,8 @@ const DetailPage = () => {
       <ScrollView scrollY className="content-scroll" onScroll={(e: any) => setIsScrolled(Number(e.detail.scrollTop || 0) > 80)}>
         <View className="banner-wrap">
           <Swiper className="custom-swiper" autoPlay indicator>
-            {hotelImages.map((img) => (
-              <SwiperItem key={img}>
+            {hotelImages.map((img, idx) => (
+              <SwiperItem key={`${img}-${idx}`}>
                 <Image src={img || DEFAULT_IMAGE} mode="aspectFill" className="banner-img" />
               </SwiperItem>
             ))}
@@ -312,16 +277,16 @@ const DetailPage = () => {
           <View className="gradient-overlay" />
           <View className="rating-badge">
             <StarFill size={12} color="#33C7F7" />
-            <Text className="txt">{`${Number(hotel?.score || 0).toFixed(1)}\u5206`}</Text>
+            <Text className="txt">{`${Number(hotel?.score || 0).toFixed(1)}分`}</Text>
           </View>
           <View className="official-badge">
-            <Text className="txt">{'\u5b98\u65b9\u56fe\u7247'}</Text>
+            <Text className="txt">{'官方图片'}</Text>
           </View>
         </View>
 
         <View className="info-card">
           <View className="header">
-            <Text className="name">{hotel?.name || '\u9152\u5e97\u8be6\u60c5'}</Text>
+            <Text className="name">{hotel?.name || '酒店详情'}</Text>
             <View className="tags">
               {(hotel?.tags || []).slice(0, 2).map((tag, idx) => (
                 <Text key={`${tag}-${idx}`} className={`tag ${idx === 0 ? 'blue' : 'pink'}`}>
@@ -333,13 +298,13 @@ const DetailPage = () => {
 
           <View className="star-row">
             <StarFill size={12} color="#33C7F7" />
-            <Text className="level">{`${Number(hotel?.star_level || 0)}\u661f\u9152\u5e97`}</Text>
+            <Text className="level">{`${Number(hotel?.star_level || 0)}星酒店`}</Text>
           </View>
 
           <View className="address-row">
             <Location size={12} color="#33C7F7" />
             <Text className="addr-txt">{hotel?.address || `${hotel?.city || ''}`}</Text>
-            <View className="map-btn">{'\u5730\u56fe'}</View>
+            <View className="map-btn">{'地图'}</View>
           </View>
 
           <View className="services-row">
@@ -355,32 +320,32 @@ const DetailPage = () => {
         <View className="date-card" onClick={() => setShowCalendar(true)}>
           <View className="date-sec">
             <View className="col">
-              <Text className="label">{'\u5165\u4f4f'}</Text>
+              <Text className="label">{'入住'}</Text>
               <Text className="val">{dayjs(checkInDate).format('MM-DD')}</Text>
             </View>
             <View className="col">
-              <Text className="val blue">{`\u5171${nights}\u665a`}</Text>
-              <Text className="info">{`${guests}\u4eba - ${rooms}\u95f4`}</Text>
+              <Text className="val blue">{`共${nights}晚`}</Text>
+              <Text className="info">{`${guests}人 - ${rooms}间`}</Text>
             </View>
             <View className="col">
-              <Text className="label">{'\u79bb\u5e97'}</Text>
+              <Text className="label">{'离店'}</Text>
               <Text className="val">{dayjs(checkOutDate).format('MM-DD')}</Text>
             </View>
           </View>
-          <Text className="edit-btn">{'\u4fee\u6539'}</Text>
+          <Text className="edit-btn">{'修改'}</Text>
         </View>
 
         <View className="room-list">
           {loading ? (
             <View className="room-card">
               <View className="card-content">
-                <Text>{'\u623f\u578b\u52a0\u8f7d\u4e2d...'}</Text>
+                <Text>{'房型加载中...'}</Text>
               </View>
             </View>
           ) : roomList.length === 0 ? (
             <View className="room-card">
               <View className="card-content">
-                <Text>{'\u6682\u65e0\u623f\u578b\u6570\u636e'}</Text>
+                <Text>{'暂无房型数据'}</Text>
               </View>
             </View>
           ) : (
@@ -388,7 +353,7 @@ const DetailPage = () => {
               const active = Number(selectedRoom) === Number(room.id)
               const price = Number(room.plans?.[0]?.price || 0)
               const featureList = String(room.description || '')
-                .split(/[\uFF0C,]/)
+                .split(/[，,]/)
                 .map((x) => x.trim())
                 .filter(Boolean)
                 .slice(0, 4)
@@ -398,17 +363,17 @@ const DetailPage = () => {
                     <View className="head-row">
                       <Text className="r-name">{room.name}</Text>
                       <View className="r-tags">
-                        <Text className="r-tag blue">{`\u5269${Math.max(0, Number(room.remain_count || 0))}\u95f4`}</Text>
+                        <Text className="r-tag blue">{`剩${Math.max(0, Number(room.remain_count || 0))}间`}</Text>
                         {room.sold_out ? (
-                          <Text className="r-tag pink">{'\u5df2\u552e\u7f44'}</Text>
+                          <Text className="r-tag pink">{'已售罄'}</Text>
                         ) : (
-                          <Text className="r-tag pink">{'\u53ef\u9884\u8ba2'}</Text>
+                          <Text className="r-tag pink">{'可预订'}</Text>
                         )}
                       </View>
                     </View>
 
                     <View className="features">
-                      {(featureList.length > 0 ? featureList : ['\u53ef\u4f4f2\u4eba', '\u72ec\u7acb\u536b\u6d74']).map((feature) => (
+                      {(featureList.length > 0 ? featureList : ['可住2人', '独立卫浴']).map((feature) => (
                         <View className="feat-item" key={feature}>
                           <Text>{`- ${feature}`}</Text>
                         </View>
@@ -417,9 +382,9 @@ const DetailPage = () => {
 
                     <View className="price-row">
                       <View className="left">
-                        <Text className="curr">{`\u00a5${price}`}</Text>
-                        <Text className="old">{`\u00a5${Math.max(price + 80, price)}`}</Text>
-                        <Text className="disc">{'\u4f18\u60e0\u4ef7'}</Text>
+                        <Text className="curr">{`¥${price}`}</Text>
+                        <Text className="old">{`¥${Math.max(price + 80, price)}`}</Text>
+                        <Text className="disc">{'优惠价'}</Text>
                       </View>
                       <View
                         className={`book-btn ${active ? 'selected' : ''}`}
@@ -427,7 +392,7 @@ const DetailPage = () => {
                           if (!room.sold_out) setSelectedRoom(room.id)
                         }}
                       >
-                        {room.sold_out ? '\u5df2\u552e\u7f44' : active ? '\u5df2\u9009\u62e9' : '\u9009\u62e9'}
+                        {room.sold_out ? '已售罄' : active ? '已选择' : '选择'}
                       </View>
                     </View>
                   </View>
@@ -442,15 +407,15 @@ const DetailPage = () => {
       <View className="bottom-bar">
         <View className="info">
           <Text className="desc">
-            {`${dayjs(checkInDate).format('MM-DD')} - ${dayjs(checkOutDate).format('MM-DD')} - \u5171${nights}\u665a`}
+            {`${dayjs(checkInDate).format('MM-DD')} - ${dayjs(checkOutDate).format('MM-DD')} - 共${nights}晚`}
           </Text>
           <View className="price-box">
-            <Text className="val">{`\u00a5${selectedPrice || 0}`}</Text>
-            <Text className="unit">{'\u8d77/\u665a'}</Text>
+            <Text className="val">{`¥${selectedPrice || 0}`}</Text>
+            <Text className="unit">{'起/晚'}</Text>
           </View>
         </View>
         <Button className="main-btn" onClick={handleBook}>
-          {'\u7acb\u5373\u9884\u8ba2'}
+          {'立即预订'}
         </Button>
       </View>
 
@@ -467,3 +432,4 @@ const DetailPage = () => {
 }
 
 export default DetailPage
+

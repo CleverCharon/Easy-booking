@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { View, Text, Image, ScrollView, Input } from '@tarojs/components'
 import Taro, { usePullDownRefresh } from '@tarojs/taro'
 import dayjs from 'dayjs'
@@ -77,7 +77,7 @@ const ListPage = () => {
         const tags = normalizeTags(item.tags)
         return {
           id: String(item.id),
-          name: String(item.name || '\u9152\u5e97'),
+          name: String(item.name || '酒店'),
           image: String(item.main_image || item.image_url || DEFAULT_IMAGE),
           score: Number(item.score || 4.6),
           price: Number(item.min_price || item.price || 0),
@@ -91,7 +91,7 @@ const ListPage = () => {
       setList(hotelList)
     } catch (error) {
       console.error(error)
-      Taro.showToast({ title: '\u52a0\u8f7d\u9152\u5e97\u5931\u8d25', icon: 'none' })
+      Taro.showToast({ title: '加载酒店失败', icon: 'none' })
     } finally {
       setLoading(false)
     }
@@ -103,7 +103,7 @@ const ListPage = () => {
       const res = await get(`/favorites/list?user_id=${userInfo.id}`)
       const favHotels: Hotel[] = (Array.isArray(res) ? res : []).map((item: any) => ({
         id: String(item.id),
-        name: String(item.name || '\u9152\u5e97'),
+        name: String(item.name || '酒店'),
         image: String(item.image_url || item.main_image || DEFAULT_IMAGE),
         score: Number(item.score || 4.6),
         price: Number(item.min_price || item.price || 0),
@@ -178,7 +178,7 @@ const ListPage = () => {
         await post('/favorites/remove', { user_id: userInfo.id, hotel_id: hotel.id })
       } catch (error) {
         addFavorite(hotel)
-        Taro.showToast({ title: '\u53d6\u6d88\u6536\u85cf\u5931\u8d25', icon: 'none' })
+        Taro.showToast({ title: '取消收藏失败', icon: 'none' })
       }
       return
     }
@@ -188,7 +188,7 @@ const ListPage = () => {
       await post('/favorites/add', { user_id: userInfo.id, hotel_id: hotel.id })
     } catch (error) {
       removeFavorite(hotel.id)
-      Taro.showToast({ title: '\u6536\u85cf\u5931\u8d25', icon: 'none' })
+      Taro.showToast({ title: '收藏失败', icon: 'none' })
     }
   }
 
@@ -243,24 +243,24 @@ const ListPage = () => {
   }
 
   const chips = [
-    '\u514d\u8d39\u505c\u8f66',
-    '\u542b\u65e9\u9910',
-    '\u8fd1\u5730\u94c1',
-    '\u514d\u8d39\u53d6\u6d88',
-    '\u4eb2\u5b50\u53cb\u597d',
-    '\u5065\u8eab\u623f',
-    '\u6e38\u6cf3\u6c60',
-    '\u53ef\u5e26\u5ba0\u7269',
+    '免费停车',
+    '含早餐',
+    '近地铁',
+    '免费取消',
+    '亲子友好',
+    '健身房',
+    '游泳池',
+    '可带宠物',
   ]
-  const starOptions = ['2\u661f/\u7ecf\u6d4e', '3\u661f/\u8212\u9002', '4\u661f/\u9ad8\u6863', '5\u661f/\u8c6a\u534e']
+  const starOptions = ['2星/经济', '3星/舒适', '4星/高档', '5星/豪华']
   const priceOptions = [
-    { label: '\u4e0d\u9650', min: 0, max: 10000 },
-    { label: '\u00a5150\u4ee5\u4e0b', min: 0, max: 150 },
-    { label: '\u00a5150-300', min: 150, max: 300 },
-    { label: '\u00a5300-450', min: 300, max: 450 },
-    { label: '\u00a5450-600', min: 450, max: 600 },
-    { label: '\u00a5600-1000', min: 600, max: 1000 },
-    { label: '\u00a51000\u4ee5\u4e0a', min: 1000, max: 10000 },
+    { label: '不限', min: 0, max: 10000 },
+    { label: '¥150以下', min: 0, max: 150 },
+    { label: '¥150-300', min: 150, max: 300 },
+    { label: '¥300-450', min: 300, max: 450 },
+    { label: '¥450-600', min: 450, max: 600 },
+    { label: '¥600-1000', min: 600, max: 1000 },
+    { label: '¥1000以上', min: 1000, max: 10000 },
   ]
 
   return (
@@ -268,17 +268,17 @@ const ListPage = () => {
       <View className="list-header">
         <View className="search-summary">
           <View className="row1">
-            <Text>{city || '\u5168\u90e8\u57ce\u5e02'}</Text>
+            <Text>{city || '全部城市'}</Text>
             <Text className="date">
               {dayjs(startDate).format('MM-DD')} - {dayjs(endDate).format('MM-DD')}
             </Text>
-            <Text className="nights">{`\u5171${nights}\u665a`}</Text>
+            <Text className="nights">{`共${nights}晚`}</Text>
           </View>
           <View className="input-wrap">
             <Search size={12} color="#999" className="icon" />
             <Input
               className="search-input"
-              placeholder="\u9152\u5e97\u540d/\u5730\u5740/\u6807\u7b7e"
+              placeholder="酒店名/地址/标签"
               value={keyword}
               onInput={(e: any) => setKeyword(String(e.detail.value || ''))}
             />
@@ -290,7 +290,7 @@ const ListPage = () => {
       </View>
 
       <View className="filter-bar">
-        {['\u4f4d\u7f6e', '\u4ef7\u683c/\u661f\u7ea7', '\u4eba\u6570/\u623f\u95f4', '\u7b5b\u9009'].map((text, idx) => (
+        {['位置', '价格/星级', '人数/房间', '筛选'].map((text, idx) => (
           <View key={idx} className="filter-item" onClick={openFilter}>
             <Text>{text}</Text>
           </View>
@@ -316,7 +316,7 @@ const ListPage = () => {
           <View className="skeleton-list">
             {[1, 2, 3].map((i) => (
               <View key={i} className="sk-card">
-                <Text>{'\u52a0\u8f7d\u4e2d...'}</Text>
+                <Text>{'加载中...'}</Text>
               </View>
             ))}
           </View>
@@ -327,8 +327,8 @@ const ListPage = () => {
                 <Image src={hotel.image || DEFAULT_IMAGE} className="hotel-img" mode="aspectFill" />
                 <View className="badge">
                   {hotel.availableStock && hotel.availableStock > 0
-                    ? `\u5269\u4f59${hotel.availableStock}\u95f4`
-                    : '\u53ef\u9884\u8ba2'}
+                    ? `剩余${hotel.availableStock}间`
+                    : '可预订'}
                 </View>
                 <View className="fav-btn" onClick={(e: any) => toggleFav(e, hotel)}>
                   {isFavorite(hotel.id) ? <HeartFill color="#DFA0C8" /> : <Heart color="#ccc" />}
@@ -355,7 +355,7 @@ const ListPage = () => {
 
                 <View className="price-row">
                   <View className="price-left">
-                    <Text className="symbol">{'\u00a5'}</Text>
+                    <Text className="symbol">{'¥'}</Text>
                     <Text className="price">{hotel.price || 0}</Text>
                   </View>
                   <Button
@@ -363,25 +363,25 @@ const ListPage = () => {
                     className="book-btn"
                     onClick={(e: any) => handleBookClick(e, hotel.id)}
                   >
-                    {'\u9884\u8ba2'}
+                    {'预订'}
                   </Button>
                 </View>
               </View>
             </View>
           ))
         )}
-        {!loading && <View className="no-more">{'\u6ca1\u6709\u66f4\u591a\u9152\u5e97\u4e86'}</View>}
+        {!loading && <View className="no-more">{'没有更多酒店了'}</View>}
       </ScrollView>
 
       <Popup visible={showFilter} position="bottom" onClose={() => setShowFilter(false)} round style={{ height: '60%' }}>
         <View className="filter-popup">
           <View className="popup-header">
-            <Text className="title">{'\u7b5b\u9009\u6761\u4ef6'}</Text>
+            <Text className="title">{'筛选条件'}</Text>
             <Close size={18} onClick={() => setShowFilter(false)} />
           </View>
           <ScrollView scrollY className="popup-body">
             <View className="section">
-              <Text className="label">{'\u661f\u7ea7'}</Text>
+              <Text className="label">{'星级'}</Text>
               <View className="stars">
                 {starOptions.map((star) => (
                   <View
@@ -395,7 +395,7 @@ const ListPage = () => {
               </View>
             </View>
             <View className="section">
-              <Text className="label">{'\u4ef7\u683c\u533a\u95f4'}</Text>
+              <Text className="label">{'价格区间'}</Text>
               <View className="price-opts">
                 {priceOptions.map((p) => {
                   const active = localMinPrice === p.min && localMaxPrice === p.max
@@ -417,10 +417,10 @@ const ListPage = () => {
           </ScrollView>
           <View className="popup-footer">
             <Button className="reset-btn" onClick={resetFilter}>
-              {'\u91cd\u7f6e'}
+              {'重置'}
             </Button>
             <Button className="confirm-btn" type="primary" onClick={applyFilter}>
-              {`\u67e5\u770b${filteredList.length}\u5bb6`}
+              {`查看${filteredList.length}家`}
             </Button>
           </View>
         </View>
@@ -430,3 +430,4 @@ const ListPage = () => {
 }
 
 export default ListPage
+

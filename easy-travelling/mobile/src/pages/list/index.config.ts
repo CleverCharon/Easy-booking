@@ -1,4 +1,5 @@
-export default definePageConfig({
-  navigationBarTitleText: '\u9152\u5e97\u5217\u8868',
+﻿export default definePageConfig({
+  navigationBarTitleText: '酒店列表',
   enablePullDownRefresh: true,
 })
+
