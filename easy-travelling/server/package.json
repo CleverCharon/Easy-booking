@@ -1,33 +1,37 @@
-{
-  "name": "server",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "init-db": "node init_db.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@alicloud/credentials": "^2.4.4",
-    "@alicloud/dypnsapi20170525": "^2.0.0",
-    "@alicloud/dysmsapi20170525": "^4.5.0",
-    "@alicloud/openapi-client": "^0.4.15",
-    "@alicloud/pop-core": "^1.8.0",
-    "@alicloud/tea-typescript": "^1.8.0",
-    "@alicloud/tea-util": "^1.4.11",
-    "ali-oss": "^6.23.0",
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "multer": "^2.0.2",
-    "mysql2": "^3.16.3",
-    "nodemon": "^3.1.11"
-  }
+﻿{
+    "name":  "server",
+    "version":  "1.0.0",
+    "description":  "",
+    "main":  "index.js",
+    "scripts":  {
+                    "start":  "node index.js",
+                    "dev":  "nodemon index.js",
+                    "init-db":  "node init_db.js",
+                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1",
+                    "cleanup-admins:dry":  "node scripts/delete_admin_users.js",
+                    "cleanup-admins":  "node scripts/delete_admin_users.js --execute"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "dependencies":  {
+                         "@alicloud/credentials":  "^2.4.4",
+                         "@alicloud/dypnsapi20170525":  "^2.0.0",
+                         "@alicloud/dysmsapi20170525":  "^4.5.0",
+                         "@alicloud/openapi-client":  "^0.4.15",
+                         "@alicloud/pop-core":  "^1.8.0",
+                         "@alicloud/tea-typescript":  "^1.8.0",
+                         "@alicloud/tea-util":  "^1.4.11",
+                         "ali-oss":  "^6.23.0",
+                         "bcryptjs":  "^3.0.3",
+                         "cors":  "^2.8.6",
+                         "dotenv":  "^17.3.1",
+                         "express":  "^5.2.1",
+                         "jsonwebtoken":  "^9.0.3",
+                         "multer":  "^2.0.2",
+                         "mysql2":  "^3.16.3",
+                         "nodemon":  "^3.1.11"
+                     }
 }

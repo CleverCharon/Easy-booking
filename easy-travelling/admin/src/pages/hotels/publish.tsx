@@ -193,6 +193,12 @@ export default function HotelPublishPage() {
       const phone = [values.phoneCode || '', (values.phoneNumber || '').trim()].filter(Boolean).join('') || undefined
       const normalizedTagList: string[] = Array.isArray(values.tagList) ? values.tagList : []
       const tags = normalizedTagList.map((t: string) => t.trim()).filter(Boolean).join('\uFF0C') || undefined
+      const normalizedRoomTypesPayload = roomTypes.map((rt, i) => ({
+        name: rt.name,
+        price: rt.price,
+        description: rt.description,
+        image_url: roomTypeUrls[i] || rt.image_url,
+      }))
       const payload = {
         name: values.name,
         city: values.city,
@@ -203,12 +209,8 @@ export default function HotelPublishPage() {
         tags,
         image_url: coverUrl,
         description: values.description,
-        roomTypes: roomTypes.map((rt, i) => ({
-          name: rt.name,
-          price: rt.price,
-          description: rt.description,
-          image_url: roomTypeUrls[i] || rt.image_url,
-        })),
+        roomTypes: normalizedRoomTypesPayload,
+        room_types: normalizedRoomTypesPayload,
       }
       if (editId) {
         await updateHotel(editId, payload)

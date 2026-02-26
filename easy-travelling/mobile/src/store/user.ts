@@ -1,10 +1,12 @@
+import Taro from '@tarojs/taro'
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 
 /**
  * 用户信息接口定义
  */
 interface UserInfo {
-  id: string
+  id: string | number
   avatar?: string
   phone?: string
   level?: string
@@ -28,12 +30,47 @@ interface UserState {
   logout: () => void
 }
 
-/**
- * 全局用户状态管理 (基于 Zustand)
- */
-export const useUserStore = create<UserState>((set) => ({
-  isLogin: false,
-  userInfo: null,
-  login: (userInfo) => set({ isLogin: true, userInfo }),
-  logout: () => set({ isLogin: false, userInfo: null }),
+const USER_STORE_KEY = 'easy_travel_user_store'
+
+const taroStorage = createJSONStorage(() => ({
+  getItem: (name: string) => {
+    try {
+      const value = Taro.getStorageSync(name)
+      return value || null
+    } catch (error) {
+      return null
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      Taro.setStorageSync(name, value)
+    } catch (error) {}
+  },
+  removeItem: (name: string) => {
+    try {
+      Taro.removeStorageSync(name)
+    } catch (error) {}
+  },
 }))
+
+/**
+ * 全局用户状态管理 (基于 Zustand + 持久化)
+ */
+export const useUserStore = create<UserState>()(
+  persist(
+    (set) => ({
+      isLogin: false,
+      userInfo: null,
+      login: (userInfo) => set({ isLogin: true, userInfo }),
+      logout: () => set({ isLogin: false, userInfo: null }),
+    }),
+    {
+      name: USER_STORE_KEY,
+      storage: taroStorage,
+      partialize: (state) => ({
+        isLogin: state.isLogin,
+        userInfo: state.userInfo,
+      }),
+    }
+  )
+)

@@ -39,15 +39,30 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 // 数据库配置
 // ==========================================
 
-const db = mysql.createPool({
+const dbPort = Number(process.env.DB_PORT || 3306);
+const dbSslEnabled = ['1', 'true', 'yes', 'on', 'required'].includes(
+  String(process.env.DB_SSL || '').toLowerCase()
+);
+const dbSslRejectUnauthorized = String(process.env.DB_SSL_REJECT_UNAUTHORIZED || 'false').toLowerCase() === 'true';
+
+const dbConfig = {
   host: process.env.DB_HOST || '127.0.0.1',
+  port: Number.isFinite(dbPort) ? dbPort : 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || 'clever',
   database: process.env.DB_NAME || 'easy_travel_db',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
-});
+  queueLimit: 0,
+};
+
+if (dbSslEnabled) {
+  dbConfig.ssl = {
+    rejectUnauthorized: dbSslRejectUnauthorized,
+  };
+}
+
+const db = mysql.createPool(dbConfig);
 const dbPromise = db.promise();
 
 // 测试数据库连接
@@ -195,8 +210,8 @@ async function backfillRoomStockForAllHotels() {
 
 // 管理员身份码
 const ADMIN_ROLE_CODES = new Set([
-  'A1B2C3', 'D4E5F6', 'G7H8J9', 'K1L2M3', 'N4P5Q6',
-  'R7S8T9', 'U1V2W3', 'X4Y5Z6', '1A2B3C', '4D5E6F',
+  'AAAAAA', 'BBBBBB', 'CCCCCC', 'DDDDDD', 'EEEEEE',
+  'FFFFFF', 'GGGGGG', 'HHHHHH', 'IIIIII', 'JJJJJJ',
 ]);
 
 function getOSSClient() {
@@ -1217,6 +1232,75 @@ app.get('/api/user/:id/coupons', (req, res) => {
 // API 接口：订单系统 (待支付 -> 支付扣库存)
 // ==========================================
 
+async function releaseRoomStockForBooking(conn, booking) {
+  const hotelIdNum = Number(booking?.hotel_id);
+  if (!hotelIdNum) return { released: false, reason: 'invalid_hotel_id' };
+
+  const { checkIn, checkOut, stayDates } = buildStayRange(booking?.check_in_date, booking?.check_out_date);
+  if (stayDates.length === 0) return { released: false, reason: 'invalid_date_range' };
+
+  const roomType = await resolveRoomType(conn, hotelIdNum, booking?.room_type_id, booking?.room_type_name);
+  if (!roomType) return { released: false, reason: 'room_type_not_found' };
+
+  const nights = Math.max(1, stayDates.length);
+  const roomPrice = Number(roomType.price || 0);
+  let restoreCount = toPositiveInt(booking?.room_count, 1);
+  if (roomPrice > 0 && Number(booking?.total_price || 0) > 0) {
+    restoreCount = Math.max(restoreCount, Math.round(Number(booking.total_price) / (roomPrice * nights)));
+  }
+
+  const [stockRows] = await conn.query(
+    'SELECT id FROM room_stock WHERE hotel_id = ? AND room_type_id = ? AND date >= ? AND date < ? FOR UPDATE',
+    [hotelIdNum, Number(roomType.id), checkIn, checkOut]
+  );
+  const stockIds = (stockRows || []).map((row) => Number(row.id)).filter(Boolean);
+  if (stockIds.length === 0) return { released: false, reason: 'stock_rows_not_found' };
+
+  await conn.query('UPDATE room_stock SET booked_count = GREATEST(booked_count - ?, 0) WHERE id IN (?)', [
+    restoreCount,
+    stockIds,
+  ]);
+
+  return { released: true, restoreCount, stockRowCount: stockIds.length };
+}
+
+async function syncCompletedBookingsAndReleaseStock(conn, bookingCols, phone) {
+  if (
+    !hasColumn(bookingCols, 'status') ||
+    !hasColumn(bookingCols, 'check_out_date') ||
+    !hasColumn(bookingCols, 'user_phone')
+  ) {
+    return 0;
+  }
+
+  const selectCols = [
+    'id',
+    'hotel_id',
+    'check_in_date',
+    'check_out_date',
+    'total_price',
+    hasColumn(bookingCols, 'room_type_id') ? 'room_type_id' : 'NULL AS room_type_id',
+    hasColumn(bookingCols, 'room_type_name') ? 'room_type_name' : "'' AS room_type_name",
+    hasColumn(bookingCols, 'room_count') ? 'room_count' : '1 AS room_count',
+  ];
+
+  const [expiredRows] = await conn.query(
+    `SELECT ${selectCols.join(', ')} FROM bookings WHERE user_phone = ? AND status = 1 AND DATE(check_out_date) < CURDATE() FOR UPDATE`,
+    [phone]
+  );
+  if (!expiredRows || expiredRows.length === 0) return 0;
+
+  for (const booking of expiredRows) {
+    await releaseRoomStockForBooking(conn, booking);
+  }
+
+  const ids = expiredRows.map((row) => Number(row.id)).filter(Boolean);
+  if (ids.length > 0) {
+    await conn.query('UPDATE bookings SET status = 3 WHERE id IN (?) AND status = 1', [ids]);
+  }
+  return ids.length;
+}
+
 app.post('/api/bookings/create', async (req, res) => {
   const {
     user_id,
@@ -1350,10 +1434,14 @@ app.get('/api/bookings/my-list', async (req, res) => {
     }
 
     if (hasColumn(bookingCols, 'status') && hasColumn(bookingCols, 'check_out_date')) {
-      await conn.query(
-        'UPDATE bookings SET status = 3 WHERE user_phone = ? AND status = 1 AND DATE(check_out_date) < CURDATE()',
-        [phone]
-      );
+      await conn.beginTransaction();
+      try {
+        await syncCompletedBookingsAndReleaseStock(conn, bookingCols, phone);
+        await conn.commit();
+      } catch (syncErr) {
+        await conn.rollback();
+        throw syncErr;
+      }
     }
 
     const statusField = hasColumn(bookingCols, 'status') ? 'b.status' : '0 AS status';
@@ -1439,7 +1527,35 @@ app.get('/api/bookings/:id/detail', async (req, res) => {
       row.check_out_date &&
       new Date(String(row.check_out_date)) < new Date(new Date().toDateString())
     ) {
-      await conn.query('UPDATE bookings SET status = 3 WHERE id = ?', [bookingId]);
+      await conn.beginTransaction();
+      try {
+        const lockCols = [
+          'id',
+          'hotel_id',
+          'check_in_date',
+          'check_out_date',
+          'total_price',
+          hasColumn(bookingCols, 'status') ? 'status' : '0 AS status',
+          hasColumn(bookingCols, 'room_type_id') ? 'room_type_id' : 'NULL AS room_type_id',
+          hasColumn(bookingCols, 'room_type_name') ? 'room_type_name' : "'' AS room_type_name",
+          hasColumn(bookingCols, 'room_count') ? 'room_count' : '1 AS room_count',
+          hasColumn(bookingCols, 'user_phone') ? 'user_phone' : "'' AS user_phone",
+        ];
+        const wherePhone = hasColumn(bookingCols, 'user_phone') && phone ? ' AND user_phone = ?' : '';
+        const lockParams = hasColumn(bookingCols, 'user_phone') && phone ? [bookingId, phone] : [bookingId];
+        const [lockRows] = await conn.query(
+          `SELECT ${lockCols.join(', ')} FROM bookings WHERE id = ?${wherePhone} FOR UPDATE`,
+          lockParams
+        );
+        if (lockRows && lockRows[0] && Number(lockRows[0].status || 0) === 1) {
+          await releaseRoomStockForBooking(conn, lockRows[0]);
+          await conn.query('UPDATE bookings SET status = 3 WHERE id = ? AND status = 1', [bookingId]);
+        }
+        await conn.commit();
+      } catch (syncErr) {
+        await conn.rollback();
+        throw syncErr;
+      }
       row.status = 3;
     }
 
@@ -1560,6 +1676,7 @@ app.post('/api/bookings/:id/pay', async (req, res) => {
 
 app.post('/api/bookings/:id/cancel', async (req, res) => {
   const bookingId = Number(req.params.id);
+  const userPhone = String(req.body?.user_phone || '').trim();
   if (!bookingId) return res.status(400).send({ message: '订单ID无效' });
 
   const conn = await dbPromise.getConnection();
@@ -1573,6 +1690,7 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
       'check_out_date',
       'total_price',
       hasColumn(bookingCols, 'status') ? 'status' : '0 AS status',
+      hasColumn(bookingCols, 'user_phone') ? 'user_phone' : "'' AS user_phone",
       hasColumn(bookingCols, 'room_type_id') ? 'room_type_id' : 'NULL AS room_type_id',
       hasColumn(bookingCols, 'room_type_name') ? 'room_type_name' : "'' AS room_type_name",
       hasColumn(bookingCols, 'room_count') ? 'room_count' : '1 AS room_count',
@@ -1584,6 +1702,17 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
       return res.status(404).send({ message: '订单不存在' });
     }
     const booking = rows[0];
+
+    if (hasColumn(bookingCols, 'user_phone') && !userPhone) {
+      await conn.rollback();
+      return res.status(400).send({ message: '缺少用户手机号' });
+    }
+
+    if (hasColumn(bookingCols, 'user_phone') && String(booking.user_phone || '') !== userPhone) {
+      await conn.rollback();
+      return res.status(403).send({ message: '无权取消该订单' });
+    }
+
     const statusNum = Number(booking.status || 0);
     if (![0, 1].includes(statusNum)) {
       await conn.rollback();
@@ -1591,29 +1720,7 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
     }
 
     if (statusNum === 1) {
-      const { checkIn, checkOut, stayDates } = buildStayRange(booking.check_in_date, booking.check_out_date);
-      const roomType = await resolveRoomType(conn, booking.hotel_id, booking.room_type_id, booking.room_type_name);
-
-      if (stayDates.length > 0 && roomType) {
-        const nights = Math.max(1, stayDates.length);
-        const roomPrice = Number(roomType.price || 0);
-        let restoreCount = toPositiveInt(booking.room_count, 1);
-        if (roomPrice > 0 && Number(booking.total_price || 0) > 0) {
-          restoreCount = Math.max(restoreCount, Math.round(Number(booking.total_price) / (roomPrice * nights)));
-        }
-
-        const [stockRows] = await conn.query(
-          'SELECT id FROM room_stock WHERE hotel_id = ? AND room_type_id = ? AND date >= ? AND date < ? FOR UPDATE',
-          [Number(booking.hotel_id), Number(roomType.id), checkIn, checkOut]
-        );
-        const stockIds = (stockRows || []).map((x) => Number(x.id)).filter(Boolean);
-        if (stockIds.length > 0) {
-          await conn.query(
-            'UPDATE room_stock SET booked_count = GREATEST(booked_count - ?, 0) WHERE id IN (?)',
-            [restoreCount, stockIds]
-          );
-        }
-      }
+      await releaseRoomStockForBooking(conn, booking);
     }
 
     if (hasColumn(bookingCols, 'status')) {
@@ -1624,6 +1731,59 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
   } catch (err) {
     await conn.rollback();
     res.status(500).send({ message: '取消失败', error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+app.post('/api/bookings/clear', async (req, res) => {
+  const userPhone = String(req.body?.user_phone || '').trim();
+  if (!userPhone) return res.status(400).send({ message: '缺少用户手机号' });
+
+  const conn = await dbPromise.getConnection();
+  try {
+    await conn.beginTransaction();
+    const bookingCols = await getTableColumnSet(conn, 'bookings');
+    if (!hasColumn(bookingCols, 'user_phone')) {
+      await conn.rollback();
+      return res.status(500).send({ message: 'bookings 表缺少 user_phone 字段' });
+    }
+
+    const selectCols = [
+      'id',
+      'hotel_id',
+      'check_in_date',
+      'check_out_date',
+      'total_price',
+      hasColumn(bookingCols, 'status') ? 'status' : '0 AS status',
+      hasColumn(bookingCols, 'room_type_id') ? 'room_type_id' : 'NULL AS room_type_id',
+      hasColumn(bookingCols, 'room_type_name') ? 'room_type_name' : "'' AS room_type_name",
+      hasColumn(bookingCols, 'room_count') ? 'room_count' : '1 AS room_count',
+    ];
+    const [allBookings] = await conn.query(
+      `SELECT ${selectCols.join(', ')} FROM bookings WHERE user_phone = ? FOR UPDATE`,
+      [userPhone]
+    );
+
+    let releasedCount = 0;
+    for (const booking of allBookings || []) {
+      if (Number(booking.status || 0) === 1) {
+        await releaseRoomStockForBooking(conn, booking);
+        releasedCount += 1;
+      }
+    }
+
+    const [result] = await conn.query('DELETE FROM bookings WHERE user_phone = ?', [userPhone]);
+    await conn.commit();
+    res.send({
+      success: true,
+      message: '已清空订单',
+      deletedCount: Number(result?.affectedRows || 0),
+      releasedPaidCount: releasedCount,
+    });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).send({ message: '清空订单失败', error: err.message });
   } finally {
     conn.release();
   }
@@ -1651,8 +1811,8 @@ app.post('/api/upload', authMiddleware, upload.single('file'), (req, res) => {
 
 app.post('/api/hotels', authMiddleware, async (req, res) => {
   if (req.user.role !== 'merchant') return res.status(403).json({ success: false, message: '仅商户可发布' });
-  const { name, city, address, phone, price, star_level, tags, image_url, description, roomTypes } = req.body;
-  const normalizedRoomTypes = normalizeRoomTypesInput(roomTypes);
+  const { name, city, address, phone, price, star_level, tags, image_url, description, roomTypes, room_types } = req.body;
+  const normalizedRoomTypes = normalizeRoomTypesInput(Array.isArray(roomTypes) ? roomTypes : room_types);
   if (normalizedRoomTypes.length === 0) {
     return res.status(400).json({ success: false, message: '请至少提交一个有效房型' });
   }
@@ -1672,8 +1832,20 @@ app.post('/api/hotels', authMiddleware, async (req, res) => {
     const roomTypeIds = await getRoomTypeIdsByHotel(conn, hotelId);
     await ensureRoomStockRows(conn, hotelId, roomTypeIds);
 
+    const [stockCountRows] = await conn.query('SELECT COUNT(*) AS cnt FROM room_stock WHERE hotel_id = ?', [hotelId]);
+    const stockCount = Number(stockCountRows?.[0]?.cnt || 0);
+
     await conn.commit();
-    res.json({ success: true, message: '发布成功', hotelId });
+    console.log(
+      `[Hotel Publish] hotelId=${hotelId}, merchantId=${req.user.userId}, roomTypes=${normalizedRoomTypes.length}, stockRows=${stockCount}, db=${process.env.DB_NAME || 'easy_travel_db'}`
+    );
+    res.json({
+      success: true,
+      message: '发布成功',
+      hotelId,
+      roomTypeCount: normalizedRoomTypes.length,
+      stockRowCount: stockCount,
+    });
   } catch (err) {
     await conn.rollback();
     res.status(500).json({ success: false, message: err.message });
@@ -1699,8 +1871,8 @@ app.get('/api/merchant/hotels/:id', authMiddleware, (req, res) => {
 app.put('/api/hotels/:id', authMiddleware, async (req, res) => {
   if (req.user.role !== 'merchant') return res.status(403).json({ success: false, message: '仅商户可操作' });
   const id = Number(req.params.id);
-  const { name, city, address, phone, price, star_level, tags, image_url, description, roomTypes } = req.body;
-  const normalizedRoomTypes = normalizeRoomTypesInput(roomTypes);
+  const { name, city, address, phone, price, star_level, tags, image_url, description, roomTypes, room_types } = req.body;
+  const normalizedRoomTypes = normalizeRoomTypesInput(Array.isArray(roomTypes) ? roomTypes : room_types);
   if (normalizedRoomTypes.length === 0) {
     return res.status(400).json({ success: false, message: '请至少提交一个有效房型' });
   }
@@ -1886,8 +2058,30 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: err.message || 'Server error' });
 });
 
-app.listen(port, () => {
+let serverStarted = false;
+
+const server = app.listen(port, () => {
+  serverStarted = true;
   console.log(`🚀 服务端已启动: http://localhost:${port}`);
+});
+
+server.on('error', (err) => {
+  console.error('[Server] Listen error:', err.message);
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[Server] 端口 ${port} 被占用，请先释放端口或修改端口配置后重试。`);
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught Exception:', err);
+  if (!serverStarted) {
+    process.exit(1);
+  }
+  // 本地开发场景下保持服务不直接退出，便于排查现场日志。
 });
 
 

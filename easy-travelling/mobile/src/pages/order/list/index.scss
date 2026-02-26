@@ -33,6 +33,23 @@
       font-size: 17px;
       font-weight: 700;
     }
+
+    .clear-btn {
+      position: absolute;
+      right: 14px;
+      min-width: 56px;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(44, 67, 155, 0.08);
+      color: #2c439b;
+      font-size: 12px;
+      font-weight: 600;
+      box-sizing: border-box;
+    }
   }
 
   .tabs-scroll {

@@ -124,13 +124,42 @@ const OrderList = () => {
   const handleCancel = async (order: Order) => {
     if (![0, 1].includes(Number(order.status))) return
     try {
-      await post(`/bookings/${order.id}/cancel`)
+      await post(`/bookings/${order.id}/cancel`, {
+        user_phone: userInfo?.phone || '',
+        user_id: userInfo?.id || null,
+      })
       Taro.showToast({ title: '订单已取消', icon: 'none' })
       fetchOrders()
     } catch (error: any) {
       console.error(error)
       Taro.showToast({ title: error?.message || '取消失败', icon: 'none' })
     }
+  }
+
+  const handleClearOrders = () => {
+    if (!userInfo?.phone) {
+      Taro.showToast({ title: '缺少手机号，无法清空', icon: 'none' })
+      return
+    }
+    Taro.showModal({
+      title: '清空订单',
+      content: '将删除该账号所有订单记录，此操作不可恢复，是否继续？',
+      success: async (modalRes) => {
+        if (!modalRes.confirm) return
+        try {
+          await post('/bookings/clear', {
+            user_phone: userInfo.phone,
+            user_id: userInfo.id || null,
+          })
+          setOrders([])
+          setActiveTab('all')
+          Taro.showToast({ title: '已清空订单', icon: 'success' })
+        } catch (error: any) {
+          console.error(error)
+          Taro.showToast({ title: error?.message || '清空失败', icon: 'none' })
+        }
+      },
+    })
   }
 
   if (!isLogin || !userInfo) {
@@ -151,6 +180,9 @@ const OrderList = () => {
           <ArrowLeft />
         </View>
         <Text className='title'>我的订单</Text>
+        <View className='clear-btn' onClick={handleClearOrders}>
+          清空
+        </View>
       </View>
 
       <ScrollView scrollX className='tabs-scroll' showScrollbar={false}>
