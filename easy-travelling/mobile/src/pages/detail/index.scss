@@ -81,12 +81,32 @@
     .banner-img {
       width: 100%;
       height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+
+    .nut-swiper, 
+    .nut-swiper-inner,
+    taro-swiper-core,
+    .swiper-container,
+    .swiper-wrapper,
+    .swiper-slide {
+      height: 100% !important;
+      width: 100% !important;
     }
 
     .gradient-overlay {
       position: absolute;
       inset: 0;
-      background: linear-gradient(to top, rgba(37, 37, 95, 0.6) 0%, transparent 40%);
+      background: linear-gradient(to top, rgba(37, 37, 95, 0.3) 0%, transparent 40%);
       pointer-events: none;
     }
 
@@ -114,8 +134,13 @@
       .txt { font-size: 10px; color: #fff; }
     }
     
-    /* NutUI Swiper Pagination Customization */
     .custom-swiper {
+      height: 100% !important;
+      
+      .nut-swiper-inner {
+        height: 100% !important;
+      }
+
       .nut-swiper-pagination {
         bottom: 12px;
         .nut-swiper-pagination-item {
@@ -132,7 +157,7 @@
   }
 
   .info-card {
-    margin: -28px 16px 0;
+    margin: -14px 16px 0;
     background: #fff;
     border-radius: 16px;
     padding: 16px;

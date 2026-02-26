@@ -1,4 +1,4 @@
-﻿export default defineAppConfig({
+export default defineAppConfig({
   pages: [
     'pages/home/index',
     'pages/list/index',
@@ -27,26 +27,26 @@
       {
         pagePath: 'pages/home/index',
         text: '首页',
-        iconPath: 'assets/images/tabbar/tab-home.png',
-        selectedIconPath: 'assets/images/tabbar/home-active.png',
+        iconPath: './assets/images/tabbar/tab-home.png',
+        selectedIconPath: './assets/images/tabbar/icon-home.png',
       },
       {
         pagePath: 'pages/list/index',
         text: '搜索',
-        iconPath: 'assets/images/tabbar/tab-search.png',
-        selectedIconPath: 'assets/images/tabbar/tab-search.png',
+        iconPath: './assets/images/tabbar/tab-search.png',
+        selectedIconPath: './assets/images/tabbar/tab-search.png',
       },
       {
         pagePath: 'pages/favorite/index',
         text: '收藏',
-        iconPath: 'assets/images/tabbar/tab-data.png',
-        selectedIconPath: 'assets/images/tabbar/tab-data.png',
+        iconPath: './assets/images/tabbar/tab-data.png',
+        selectedIconPath: './assets/images/tabbar/tab-data.png',
       },
       {
         pagePath: 'pages/my/index',
         text: '我的',
-        iconPath: 'assets/images/tabbar/tab-profile.png',
-        selectedIconPath: 'assets/images/tabbar/tab-profile.png',
+        iconPath: './assets/images/tabbar/tab-profile.png',
+        selectedIconPath: './assets/images/tabbar/tab-profile.png',
       },
     ],
   },

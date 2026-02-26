@@ -8,7 +8,7 @@ import {
   Close, 
   ArrowRight
 } from '@nutui/icons-react-taro'
-import { Button, Swiper, SwiperItem, Calendar, Picker, Popup, InputNumber } from '@nutui/nutui-react-taro'
+import { Button, Swiper, SwiperItem, Calendar, Popup, InputNumber, Cascader } from '@nutui/nutui-react-taro'
 import dayjs from 'dayjs'
 import { useSearchStore } from '../../store/search'
 import { get } from '../../utils/request'
@@ -32,7 +32,7 @@ const HomePage = () => {
   const [selectedTab, setSelectedTab] = useState('国内')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [banners, setBanners] = useState<any[]>([])
-  const [cityList] = useState<any[]>(allCities)
+  const [cityList, setCityList] = useState<any[]>(allCities)
   const [fullCities, setFullCities] = useState<any[]>([])
   
   // 弹窗可见性状态管理
@@ -108,9 +108,16 @@ const HomePage = () => {
     setIsCalendarVisible(false)
   }
 
-  const confirmCity = (options: any[], values: any[]) => {
-    const selected = options?.[0]
-    const newVal = selected?.text || selected?.value || values?.[0]
+  const confirmCity = (values: any[], options: any[]) => {
+    // 处理级联选择：如果选择了具体的城市（最后一级），则使用该城市
+    // 如果只选了省份（没有子级），则使用省份
+    // options 数组包含每一级的选中项对象
+    
+    // 找到最后一个非空的选中项
+    const lastSelected = options && options.length > 0 ? options[options.length - 1] : null;
+    
+    // 优先使用 text，其次 value
+    const newVal = lastSelected?.text || lastSelected?.value;
     
     if (newVal) {
       setCity(newVal)
@@ -418,21 +425,15 @@ const HomePage = () => {
         onConfirm={confirmDate}
       />
 
-      {/* City Picker */}
-      <Popup 
-        visible={isCityVisible} 
-        position="bottom" 
+      {/* City Cascader */}
+      <Cascader
+        visible={isCityVisible}
+        options={cityList}
+        value={[city]}
+        title="选择城市"
         onClose={() => setIsCityVisible(false)}
-      >
-        <Picker
-          visible={true} // Picker is always visible inside the Popup
-          options={[cityList]}
-          defaultValue={[city]}
-          onConfirm={(options, values) => confirmCity(options, values)}
-          onClose={() => setIsCityVisible(false)}
-          title="选择城市"
-        />
-      </Popup>
+        onChange={(value, params) => confirmCity(value, params)}
+      />
 
       {/* Guest Selection Popup */}
       <Popup 
