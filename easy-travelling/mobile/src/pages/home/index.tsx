@@ -183,7 +183,11 @@ const HomePage = () => {
     <View className="home-page-v2">
       {/* Top Navigation */}
       <View className="top-nav">
-        <View className="brand">易宿</View>
+         <View className="brand" style={{
+          fontFamily: '华文新魏, STXinwei, "华文新魏", cursive',
+          fontSize: '40px',
+          fontWeight: 'normal'
+        }}>易宿</View>
         <View className="icons">
           <UserIcon color="#fff" size={20} onClick={() => Taro.switchTab({ url: '/pages/my/index' })} />
         </View>
@@ -261,20 +265,125 @@ const HomePage = () => {
            <Text className="nights">共{nights}晚</Text>
         </View>
 
-        {/* Filters */}
-        <View className="filter-row">
-           <View className="filter-item" onClick={() => setIsGuestVisible(true)}>
-             <Text className="filter-text">{roomCount}居, {adults}成人, {children}儿童</Text>
-           </View>
-           <View className="divider" />
-           <View className="filter-item" onClick={() => {
-             setLocalMinPrice(minPrice)
-             setLocalMaxPrice(maxPrice)
-             setLocalStars(starLevels)
-             setIsPriceStarVisible(true)
-           }}>
-             <Text className="filter-text">{getPriceText()} · {getStarText()}</Text>
-           </View>
+        <View style={{
+          display: 'flex',
+          flexDirection: 'column',  // 改为垂直布局
+          background: '#f3f4f6',
+          borderRadius: '8px',
+          padding: '12px',
+          marginBottom: '16px'
+        }}>
+          {/* 上半部分：左侧胶囊标签（保持原样） + 右侧分割线（移除） */}
+          <View style={{
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: '12px'  // 与分割线的间距
+          }}>
+            {/* 左侧胶囊标签区域 - 点击打开人数选择 */}
+            <View 
+              style={{
+                display: 'flex',
+                gap: '16px',
+                flexWrap: 'wrap',
+                alignItems: 'center'
+              }}
+              onClick={() => setIsGuestVisible(true)}
+            >
+              {/* 房间数 - 粉色胶囊 */}
+              <View style={{
+               display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: '30px',
+                backgroundColor: '#DFA0C8',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: '500',
+                lineHeight: '1.5',
+                textAlign: 'center',
+                minWidth: '40px'
+              }}>
+                {roomCount}居
+              </View>
+      
+              {/* 成人数 - 蓝色胶囊 */}
+              <View style={{
+                display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: '30px',
+                backgroundColor: '#33C7F7',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: '500',
+                lineHeight: '1.5',
+                textAlign: 'center',
+                minWidth: '40px'
+              }}>
+                {adults}成人
+              </View>
+      
+              {/* 儿童数 - 蓝色胶囊 */}
+              <View style={{
+                display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: '30px',
+                backgroundColor: '#33C7F7',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: '500',
+                lineHeight: '1.5',
+                textAlign: 'center',
+                minWidth: '40px'
+              }}>
+                {children}儿童
+              </View>
+            </View>
+
+            {/* 原来的右侧分割线和价格星级被移除 */}
+          </View>
+
+          {/* 横着的分割线 */}
+          <View style={{
+            width: '100%',
+            height: '1px',
+            backgroundColor: '#ddd',
+            marginTop: '2px',
+            marginBottom: '4px'
+          }} />
+
+          {/* 下半部分：价格星级区域 - 独占一行，居中显示 */}
+          <View 
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              width: 'anto',
+              // 按钮样式
+              background: '#33C7F7', 
+              borderRadius: '30px',         // 大圆角，变成胶囊形状
+              height: '32px',
+              marginTop: '8px',
+              cursor: 'pointer'
+            }}
+            onClick={() => {
+              setLocalMinPrice(minPrice)
+              setLocalMaxPrice(maxPrice)
+              setLocalStars(starLevels)
+              setIsPriceStarVisible(true)
+            }}
+          >
+            <Text style={{
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#ffffff',
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+              lineHeight: '1.5'
+            }}>
+              {getPriceText()} · {getStarText()}
+            </Text>
+          </View>
         </View>
 
         {/* Quick Tags */}

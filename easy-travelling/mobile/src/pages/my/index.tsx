@@ -56,8 +56,24 @@ const MyPage = () => {
       {/* Navbar */}
       <View 
         className={`nav-bar ${scrollTop > 10 ? 'scrolled' : ''}`}
+        style={{ 
+          display: 'flex',
+          justifyContent: 'flex-start', // ✅【修改】从左开始排列
+          alignItems: 'center',
+          width: '100%', // 确保占满宽度
+          paddingLeft: '16px',
+          paddingTop: '23px',
+          position: 'relative' // 为绝对定位做准备
+        }}
       >
-        <Text className="title">我的</Text>
+        <Text 
+          className="title"
+          style={{
+            fontFamily: '"华文新魏", "Times New Roman", serif',
+            fontSize: '24px',
+            fontWeight: 'normal'
+          }}
+        >我的</Text>
       </View>
 
       <ScrollView scrollY className="content-scroll">
@@ -71,7 +87,14 @@ const MyPage = () => {
                     <Text className="char">{userInfo?.username?.[0] || 'U'}</Text>
                   </View>
                   <View className="info">
-                    <Text className="name">{userInfo?.username || '用户'}</Text>
+                    <Text 
+                      className="name"
+                      style={{
+                        fontFamily: '"华文新魏", "Times New Roman", serif',
+                        fontSize: '32xp',
+                        fontWeight: 'normal'
+                      }}
+                    >{userInfo?.username || '用户'}</Text>
                   </View>
                 </View>
               </View>

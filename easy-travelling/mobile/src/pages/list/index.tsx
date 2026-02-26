@@ -265,10 +265,14 @@ const ListPage = () => {
 
   return (
     <View className="list-page-v2">
-      <View className="list-header">
+      <View className="list-header" style={{ paddingTop: '24px' }}>
         <View className="search-summary">
-          <View className="row1">
-            <Text>{city || '全部城市'}</Text>
+          <View className="row1" style={{ marginBottom: '20px' }}>
+            <Text style={{
+              fontFamily: '华文新魏, STXinwei, "华文新魏", cursive',
+              fontSize: '24px',
+              fontWeight: 'normal'
+            }}>{city || '全部城市'}</Text>
             <Text className="date">
               {dayjs(startDate).format('MM-DD')} - {dayjs(endDate).format('MM-DD')}
             </Text>
@@ -337,17 +341,37 @@ const ListPage = () => {
 
               <View className="card-info">
                 <View className="name-row">
-                  <Text className="name">{hotel.name}</Text>
-                  <View className="score-box">
-                    <Text className="score">{Number(hotel.score || 0).toFixed(1)}</Text>
-                    <StarFill color="#33C7F7" size={10} />
+                  <Text 
+                    className="name"
+                    style={{
+                      fontSize: '20px',
+                      fontFamily: '"华文新魏", "Times New Roman", serif'
+                    }}
+                  >
+                    {hotel.name}
+                  </Text>
+                  <View className="score-box"
+                        style={{ fontSize: '20px' }}
+                  >
+                    <Text className="score" style={{ fontSize: '20px' }}>{Number(hotel.score || 0).toFixed(1)}</Text>
+                    <StarFill color="#33C7F7" size={20} />
                   </View>
                 </View>
                 <Text className="distance">{hotel.location || `${hotel.city || ''}`}</Text>
 
                 <View className="tags">
                   {hotel.tags.slice(0, 4).map((tag) => (
-                    <Text key={tag} className="tag">
+                    <Text 
+                      key={tag} 
+                      className="tag"
+                      style={{ 
+                        color: '#666666',
+                        fontSize: '12px', // 与收藏页保持一致
+                        marginRight: '8px', // 标签之间的右间距，收藏页用的是这个
+                        display: 'inline-block',
+                        whiteSpace: 'nowrap', // 防止文字换行
+                      }}
+                    >
                       {tag}
                     </Text>
                   ))}

@@ -207,10 +207,39 @@ const FavoritePage = () => {
 
   return (
     <View className="favorite-page-v3">
-      <View className="top-bar">
-        <Text className="title">{activeTab === 'collected' ? '我的收藏' : '浏览历史'}</Text>
+      <View 
+        className="top-bar" 
+        style={{ 
+          display: 'flex',
+          justifyContent: 'flex-start', // ✅【修改】从左开始排列
+          alignItems: 'center',
+          width: '100%', // 确保占满宽度
+          paddingLeft: '16px',
+          paddingRight: '16px',
+          paddingTop: '20px',
+          position: 'relative' // 为绝对定位做准备
+        }}>
+        <Text 
+          className="title"
+          style={{
+          fontFamily: '"华文新魏", "Times New Roman", serif',
+          fontSize: '24px',
+          fontWeight: 'normal',
+          textAlign: 'left'
+        }}
+        >
+          {activeTab === 'collected' ? '我的收藏' : '浏览历史'}</Text>
         {activeTab === 'collected' && (
-          <Text className="manage-btn" onClick={handleManageClick}>
+          <Text 
+            className="manage-btn" 
+            onClick={handleManageClick}
+             style={{
+              position: 'absolute',
+              left: '320px', // ✅【修改】调整这个值来控制管理按钮的水平位置
+              top: '62%',
+              transform: 'translateY(-50%)'
+          }}
+          >
             {isManaging ? '完成' : '管理'}
           </Text>
         )}
@@ -285,7 +314,14 @@ const FavoritePage = () => {
 
               <View className="card-main">
                 <View className="name-row">
-                  <Text className="name">{item.name}</Text>
+                  <Text 
+                    className="name"
+                    style={{
+                      fontFamily: '"华文新魏", "Times New Roman", serif',
+                      fontSize: '16px', // 保持原有字号，可根据需要调整
+                      fontWeight: 'normal'
+                    }}
+                  >{item.name}</Text>
                   {activeTab === 'collected' ? (
                     <HeartFill
                       size={16}
@@ -301,7 +337,8 @@ const FavoritePage = () => {
                 </View>
 
                 <View className="score-row">
-                  <Text className="score">{item.score.toFixed(1)}</Text>
+                  <Text className="score"  style={{ fontWeight: 'normal' }}
+                  >{item.score.toFixed(1)}</Text>
                   <StarFill size={10} color="#33C7F7" />
                   <Text className="review">{item.reviewCount}条点评</Text>
                 </View>
@@ -317,8 +354,10 @@ const FavoritePage = () => {
                 <Text className="address">{item.address}</Text>
 
                 <View className="price-row">
-                  <Text className="price-sign">¥</Text>
-                  <Text className="price">{item.price || 0}</Text>
+                  <Text className="price-sign"  style={{ fontWeight: 'normal' }}
+                  >¥</Text>
+                  <Text className="price"  style={{ fontWeight: 'normal' }}
+                  >{item.price || 0}</Text>
                   <Text className="price-tip">起/晚</Text>
                 </View>
               </View>

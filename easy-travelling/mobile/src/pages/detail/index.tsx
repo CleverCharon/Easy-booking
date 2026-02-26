@@ -254,7 +254,15 @@ const DetailPage = () => {
           <View className="left-btn" onClick={() => Taro.navigateBack()}>
             <ArrowLeft color="#fff" />
           </View>
-          <Text className="nav-title">{hotel?.name || '酒店详情'}</Text>
+          <Text 
+            className="nav-title"
+            style={{
+              fontFamily: '"华文新魏", "Times New Roman", serif',
+              fontSize: '24px',
+              fontWeight: 'nomal',
+              marginLeft: '30px'
+            }}
+          >{hotel?.name || '酒店详情'}</Text>
           <View className="right-btns">
             <View className="btn share-btn">
               <Text className="share-text">{'分享'}</Text>
@@ -286,7 +294,14 @@ const DetailPage = () => {
 
         <View className="info-card">
           <View className="header">
-            <Text className="name">{hotel?.name || '酒店详情'}</Text>
+            <Text 
+              className="name"
+              style={{
+                fontFamily: '"华文新魏", "Times New Roman", serif',
+                fontSize: '24px',
+                fontWeight: 'nomal',
+              }}
+            >{hotel?.name || '酒店详情'}</Text>
             <View className="tags">
               {(hotel?.tags || []).slice(0, 2).map((tag, idx) => (
                 <Text key={`${tag}-${idx}`} className={`tag ${idx === 0 ? 'blue' : 'pink'}`}>
